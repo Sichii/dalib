@@ -1,14 +1,14 @@
-﻿using DALib.Abstractions;
+﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Text;
+using DALib.Abstractions;
 using DALib.Data;
 using DALib.Definitions;
 using DALib.Extensions;
 using DALib.Utility;
 using SkiaSharp;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace DALib.Drawing;
 
@@ -62,9 +62,7 @@ public sealed class Tileset : Collection<Tile>, ISavable
     {
         using var writer = new BinaryWriter(stream, Encoding.Default, true);
 
-        var tileCount = (int)(stream.Length / CONSTANTS.TILE_SIZE);
-
-        for (var i = 0; i < tileCount; i++)
+        for (var i = 0; i < Count; i++)
         {
             var tile = this[i];
 
