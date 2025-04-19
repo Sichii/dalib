@@ -64,12 +64,19 @@ public class DataArchive : KeyedCollection<string, DataArchiveEntry>, ISavable, 
 
             stream.Seek(-4, SeekOrigin.Current);
 
-            Add(
-                new DataArchiveEntry(
-                    this,
-                    name,
-                    startAddress,
-                    endAddress - startAddress));
+            try
+            {
+                Add(
+                    new DataArchiveEntry(
+                        this,
+                        name,
+                        startAddress,
+                        endAddress - startAddress));
+            } catch
+            {
+                if (!newFormat)
+                    throw;
+            }
         }
     }
 

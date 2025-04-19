@@ -123,4 +123,47 @@ public static class PalettizedExtensions
             Palette = newPalette
         };
     }
+
+    /// <summary>
+    ///     Remaps the frame data of the given palettized hpf file to use the indexes of the new palette, assuming the colors
+    ///     are the same
+    /// </summary>
+    public static Palettized<HpfFile> RemapPalette(this Palettized<HpfFile> palettized, Palette newPalette)
+    {
+        (var hpf, var palette) = palettized;
+
+        var reversedPalette = palette.Reverse()
+                                     .ToList();
+
+        //create a dictionary that maps the old color indexes to the new color indexes
+        var colorIndexMap = palette.Select((c, i) => (c, i))
+                                   .ToFrozenDictionary(
+                                       set => (byte)set.i,
+                                       set =>
+                                       {
+                                           var newIndex = newPalette.IndexOf(set.c);
+
+                                           //if we couldn't find the color, and the color is what we use to preserve blacks
+                                           //look for a black that isn't in index 0
+                                           //search backwards, then reverse the index
+                                           if ((newIndex == -1) && (set.c == CONSTANTS.RGB555_ALMOST_BLACK))
+                                           {
+                                               var reversedIndex = reversedPalette.IndexOf(SKColors.Black);
+
+                                               return (byte)(reversedPalette.Count - reversedIndex - 1);
+                                           }
+
+                                           return (byte)newIndex;
+                                       });
+
+        for (var i = 0; i < hpf.Data.Length; i++)
+            hpf.Data[i] = colorIndexMap[hpf.Data[i]];
+
+        //return the epffile with the new palette
+        return new Palettized<HpfFile>
+        {
+            Entity = hpf,
+            Palette = newPalette
+        };
+    }
 }
