@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿#region
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -8,6 +10,7 @@ using DALib.Data;
 using DALib.Extensions;
 using DALib.Utility;
 using SkiaSharp;
+#endregion
 
 namespace DALib.Drawing;
 
@@ -129,7 +132,7 @@ public sealed class EpfFile : Collection<EpfFrame>, ISavable
         writer.Write(PixelHeight);
         writer.Write(UnknownBytes);
 
-        var footerStartAddress = this.Sum(frame => frame.Data.Length);
+        var footerStartAddress = this.Sum(frame => Math.Min(frame.Data.Length, frame.PixelWidth * frame.PixelHeight));
 
         writer.Write(footerStartAddress);
 
@@ -137,8 +140,9 @@ public sealed class EpfFile : Collection<EpfFrame>, ISavable
         for (var i = 0; i < Count; i++)
         {
             var frame = this[i];
+            var length = Math.Min(frame.Data.Length, frame.PixelWidth * frame.PixelHeight);
 
-            writer.Write(frame.Data);
+            writer.Write(frame.Data[..length]);
         }
 
         var dataIndex = 0;
@@ -148,7 +152,8 @@ public sealed class EpfFile : Collection<EpfFrame>, ISavable
         {
             var frame = this[i];
 
-            var dataEndAddress = dataIndex + frame.Data.Length;
+            var length = Math.Min(frame.Data.Length, frame.PixelWidth * frame.PixelHeight);
+            var dataEndAddress = dataIndex + length;
 
             writer.Write(frame.Top);
             writer.Write(frame.Left);
@@ -157,7 +162,7 @@ public sealed class EpfFile : Collection<EpfFrame>, ISavable
             writer.Write(dataIndex);
             writer.Write(dataEndAddress);
 
-            dataIndex += frame.Data.Length;
+            dataIndex += length;
         }
     }
     #endregion
