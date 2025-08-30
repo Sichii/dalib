@@ -70,6 +70,17 @@ public static class SKColorExtensions
         return (byte)Math.Clamp(MathF.Round(lumSrgb * 255f * coefficient), 0, 255);
     }
 
+    public static SKColor GetRandomVividColor(Random? random = null)
+    {
+        random ??= Random.Shared;
+
+        var hue = (float)(random.NextDouble() * 360.0f); // full hue range
+        var saturation = 80 + (float)(random.NextDouble() * 20); // 80–100%
+        var value = 80 + (float)(random.NextDouble() * 20); // 80–100%
+
+        return SKColor.FromHsv(hue, saturation, value);
+    }
+
     /// <summary>
     ///     Calculates the luminance of a color using the provided coefficient.
     /// </summary>
@@ -96,6 +107,35 @@ public static class SKColorExtensions
             Green: <= CONSTANTS.RGB555_COLOR_LOSS_FACTOR,
             Blue: <= CONSTANTS.RGB555_COLOR_LOSS_FACTOR
         };
+
+    /// <summary>
+    ///     Generates a random color within a given percent(positive or negative) of the given color
+    /// </summary>
+    /// <param name="color">
+    /// </param>
+    /// <param name="percent">
+    /// </param>
+    /// <returns>
+    /// </returns>
+    public static SKColor Randomize(this SKColor color, float percent = 0.1f)
+    {
+        var random = new Random();
+        var halfPercent = percent / 2f;
+
+        var rFactor = 1f + (float)(random.NextDouble() * percent - halfPercent);
+        var gFactor = 1f + (float)(random.NextDouble() * percent - halfPercent);
+        var bFactor = 1f + (float)(random.NextDouble() * percent - halfPercent);
+
+        var r = (byte)Math.Clamp(color.Red * rFactor, 0, 255);
+        var g = (byte)Math.Clamp(color.Green * gFactor, 0, 255);
+        var b = (byte)Math.Clamp(color.Blue * bFactor, 0, 255);
+
+        return new SKColor(
+            r,
+            g,
+            b,
+            color.Alpha);
+    }
 
     /// <summary>
     ///     Returns a new SKColor with the alpha set based on the luminance of the color

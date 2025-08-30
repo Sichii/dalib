@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using DALib.Abstractions;
 using DALib.Data;
@@ -248,29 +249,34 @@ public sealed class EpfFile : Collection<EpfFrame>, ISavable
     public static Palettized<EpfFile> FromImages(QuantizerOptions options, params SKImage[] orderedFrames)
     {
         ImageProcessor.PreserveNonTransparentBlacks(orderedFrames);
-
+        //ImageProcessor.CropTransparentPixels(orderedFrames);
+        
         using var quantized = ImageProcessor.QuantizeMultiple(options, orderedFrames);
 
         (var images, var palette) = quantized;
+        
+        // Crop all transparent edges and get the top-left offsets
+        var anchorPoints = ImageProcessor.CropTransparentPixels(images);
 
-        var imageWidth = (short)orderedFrames.Select(img => img.Width)
-                                             .Max();
+        var imageWidth = (short)images.Select(img => img.Width)
+                                      .Max();
 
-        var imageHeight = (short)orderedFrames.Select(img => img.Height)
-                                              .Max();
+        var imageHeight = (short)images.Select(img => img.Height)
+                                       .Max();
         var epfFile = new EpfFile(imageWidth, imageHeight);
 
         for (var i = 0; i < images.Count; i++)
         {
             var image = images[i];
+            var dims = anchorPoints[i];
 
             epfFile.Add(
                 new EpfFrame
                 {
-                    Top = 0,
-                    Left = 0,
-                    Right = (short)image.Width,
-                    Bottom = (short)image.Height,
+                    Top = (short)dims.Y,
+                    Left = (short)dims.X,
+                    Right = (short)(dims.X + image.Width),
+                    Bottom = (short)(dims.Y + image.Height),
                     Data = image.GetPalettizedPixelData(palette)
                 });
         }

@@ -96,6 +96,112 @@ public static class ImageProcessor
         for (var i = 0; i < images.Count; i++)
             images[i] = PreserveNonTransparentBlacks(images[i]);
     }
+    
+    
+    /// <summary>
+    ///     Crops an image to remove transparent pixels from all edges and returns the top-left offset
+    /// </summary>
+    /// <param name="image">
+    ///     The image to crop
+    /// </param>
+    /// <param name="topLeft">
+    ///     The top-left offset of the cropped content relative to the original image
+    /// </param>
+    /// <returns>
+    ///     A new image with transparent pixels removed from all edges, or the original image if it's already fully cropped
+    /// </returns>
+    public static SKImage CropTransparentPixels(SKImage image, out SKPoint topLeft)
+    {
+        using var bitmap = SKBitmap.FromImage(image);
+
+        var transparentColor = SKColors.Black;
+        
+        var width = bitmap.Width;
+        var height = bitmap.Height;
+        
+        // Find the bounding box of non-transparent pixels
+        var minX = width;
+        var minY = height;
+        var maxX = -1;
+        var maxY = -1;
+        
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var pixel = bitmap.GetPixel(x, y);
+                
+                // Check if pixel is not transparent
+                if (pixel != transparentColor)
+                {
+                    minX = Math.Min(minX, x);
+                    minY = Math.Min(minY, y);
+                    maxX = Math.Max(maxX, x);
+                    maxY = Math.Max(maxY, y);
+                }
+            }
+        }
+        
+        // If no non-transparent pixels found, return a 1x1 transparent image
+        if ((maxX < minX) || (maxY < minY))
+        {
+            using var emptyBitmap = new SKBitmap(1, 1);
+            emptyBitmap.SetPixel(0, 0, transparentColor);
+            
+            topLeft = new SKPoint(0, 0);
+            image.Dispose();
+            
+            return SKImage.FromBitmap(emptyBitmap);
+        }
+        
+        // Store the top-left offset
+        topLeft = new SKPoint(minX, minY);
+        
+        // Calculate the cropped dimensions
+        var croppedWidth = maxX - minX + 1;
+        var croppedHeight = maxY - minY + 1;
+        
+        // If the image is already fully cropped, return the original
+        if ((minX == 0) && (minY == 0) && (croppedWidth == width) && (croppedHeight == height))
+        {
+            topLeft = new SKPoint(0, 0);
+            return image;
+        }
+
+        // Create a new bitmap with the cropped dimensions
+        using var croppedBitmap = new SKBitmap(croppedWidth, croppedHeight);
+        
+        // Extract the subset from the original bitmap
+        bitmap.ExtractSubset(
+            croppedBitmap,
+            new SKRectI(minX, minY, maxX + 1, maxY + 1));
+        
+        var result = SKImage.FromBitmap(croppedBitmap);
+        
+        // Dispose the original image since we're returning a new one
+        image.Dispose();
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Crops transparent pixels from all edges of each image in the provided list and returns the top-left offsets.
+    /// </summary>
+    /// <param name="images">
+    /// The list of images to process, where each image will have its transparent pixels cropped.
+    /// </param>
+    /// <returns>
+    /// An array of SKPoint containing the top-left offset for each cropped image
+    /// </returns>
+    public static SKPoint[] CropTransparentPixels(IList<SKImage> images)
+    {
+        var offsets = new SKPoint[images.Count];
+        
+        for (var i = 0; i < images.Count; i++)
+            images[i] = CropTransparentPixels(images[i], out offsets[i]);
+
+        return offsets;
+    }
 
     /// <summary>
     ///     Quantizes the given image using the specified quantizer options.
@@ -189,6 +295,28 @@ public static class ImageProcessor
             Palette = palette
         };
     }
+
+    /// <summary>
+    /// Merges multiple palettes into a single palette.
+    /// </summary>
+    /// <param name="palettes">
+    /// The collection of palettes to be merged. Each palette is represented as an enumerable of colors.
+    /// </param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the merged palette exceeds the maximum number of colors allowed.
+    /// </exception>
+    public static Palette MergePalettes(params IEnumerable<Palette> palettes)
+    {
+        var uniqueColors = palettes.SelectMany(p => p)
+                                   .Distinct()
+                                   .ToList();
+
+        if (uniqueColors.Count > CONSTANTS.COLORS_PER_PALETTE)
+            throw new InvalidOperationException("Merged palette has more than 256 colors");
+
+        return new Palette(uniqueColors);
+    }
+
 
     /// <summary>
     ///     Quantizes the given images using the specified quantizer options
