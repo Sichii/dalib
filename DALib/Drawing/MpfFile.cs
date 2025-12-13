@@ -63,13 +63,13 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
     /// <summary>
     ///     The number of frames in the standing animation including optional frames. If your normal standing animation has 4
     ///     frames, but there are 2 extra frames that should occasionally be played, then you would put 6 here. (4 normal
-    ///     frames + 2 optional frames)
+    ///     frames + 2 optional frames). If there is no optional animation, this will have a value of 0.
     /// </summary>
     public byte OptionalAnimationFrameCount { get; set; }
 
     /// <summary>
-    ///     Specifies the ratio of playing the optional standing frames. For example, if this is set to 50, it will play the
-    ///     optional frames 50% of the time
+    ///     Specifies the ratio of playing the optional standing frames. For example, if this is set to 30, it will play the
+    ///     optional frames 30% of the time
     /// </summary>
     public byte OptionalAnimationRatio { get; set; }
 
@@ -398,25 +398,34 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
 
         (var images, var palette) = quantized;
 
-        var width = (short)images.Max(img => img.Width);
-        var height = (short)images.Max(img => img.Height);
+        // Crop all transparent edges and get the top-left offsets
+        var anchorPoints = ImageProcessor.CropTransparentPixels(images);
+        
+        var imageWidth = (short)images.Max(img => img.Width);
+        var imageHeight = (short)images.Max(img => img.Height);
 
         var mpfFile = new MpfFile(
             formatType == MpfFormatType.SingleAttack ? MpfHeaderType.None : MpfHeaderType.Unknown,
             formatType,
-            width,
-            height);
+            imageWidth,
+            imageHeight);
 
-        foreach (var image in images)
+        for (var i = 0; i < images.Count; i++)
+        {
+            var image = images[i];
+            var dims = anchorPoints[i];
+            
             mpfFile.Add(
                 new MpfFrame
                 {
-                    Right = (short)image.Width,
-                    Bottom = (short)image.Height,
-                    StartAddress = -1,
+                    Top = (short)dims.Y,
+                    Left = (short)dims.X,
+                    Right = (short)(dims.X + image.Width),
+                    Bottom = (short)(dims.Y + image.Height),
                     Data = image.GetPalettizedPixelData(palette)
                 });
-
+        }
+        
         return new Palettized<MpfFile>
         {
             Entity = mpfFile,

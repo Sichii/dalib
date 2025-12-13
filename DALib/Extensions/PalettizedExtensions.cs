@@ -63,11 +63,27 @@ public static class PalettizedExtensions
         foreach (var frame in epf)
         {
             //render the image with the old palette
-            using var image = Graphics.RenderImage(frame, palette);
+            var image = Graphics.RenderImage(frame, palette);
+
+            if (image.Info.BytesSize != frame.Data.Length)
+            {
+                var rect = new SKRectI(
+                    frame.Left,
+                    frame.Top,
+                    frame.Right,
+                    frame.Bottom);
+                
+                var cropped = image.Subset(rect);
+                image.Dispose();
+
+                image = cropped;
+            }
+
+            using var finalImage = image;
 
             //remap the image to the new palette
-            var newFrameData = image.GetPalettizedPixelData(newPalette);
-
+            var newFrameData = finalImage.GetPalettizedPixelData(newPalette);
+            
             //set the remapped frame data for the frames
             frame.Data = newFrameData;
         }

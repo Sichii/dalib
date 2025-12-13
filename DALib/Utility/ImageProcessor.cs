@@ -204,6 +204,79 @@ public static class ImageProcessor
     }
 
     /// <summary>
+    ///     Quantizes the given image to the specified color palette.
+    /// </summary>
+    /// <param name="image">
+    ///     The image to be quantized.
+    /// </param>
+    /// <param name="palette">
+    ///     The target color palette to quantize the image to.
+    /// </param>
+    /// <param name="ditherer">
+    ///     Optional ditherer to apply during quantization. If null, no dithering will be applied.
+    /// </param>
+    /// <returns>
+    ///     A new SKImage quantized to the specified palette.
+    /// </returns>
+    /// <remarks>
+    ///     This method maps each pixel in the source image to the closest color in the provided palette.
+    /// </remarks>
+    public static SKImage QuantizeToPalette(SKImage image, Palette palette, IDitherer? ditherer = null)
+    {
+        using var bitmap = SKBitmap.FromImage(image);
+
+        // Convert DALib Palette to KGySoft Color32 array
+        var paletteColors = palette.Select(c => c.ToColor32()).ToArray();
+
+        // Create a KGySoft Palette from Color32 array
+        var kgPalette = new KGySoft.Drawing.Imaging.Palette(paletteColors);
+
+        // Create a quantizer with the predefined palette
+        IQuantizer quantizer = PredefinedColorsQuantizer.FromCustomPalette(kgPalette);
+        var source = bitmap.GetReadableBitmapData();
+
+        using var qSession = quantizer.Initialize(source);
+        using var quantizedBitmap = new SKBitmap(image.Info);
+        using var quantizedPixMap = quantizedBitmap.PeekPixels();
+
+        var pixelBuffer = quantizedPixMap.GetPixelSpan<SKColor>();
+        pixelBuffer.Fill(CONSTANTS.Transparent);
+
+        if (ditherer is not null)
+        {
+            using var dSession = ditherer.Initialize(source, qSession);
+
+            for (var y = 0; y < image.Height; y++)
+            {
+                for (var x = 0; x < image.Width; x++)
+                {
+                    var color = bitmap.GetPixel(x, y);
+
+                    var ditheredColor = dSession.GetDitheredColor(color.ToColor32(), x, y)
+                                                .ToSKColor();
+
+                    pixelBuffer[y * image.Width + x] = ditheredColor;
+                }
+            }
+        }
+        else
+        {
+            for (var y = 0; y < image.Height; y++)
+            {
+                for (var x = 0; x < image.Width; x++)
+                {
+                    var color = bitmap.GetPixel(x, y);
+
+                    pixelBuffer[y * image.Width + x] = qSession.GetQuantizedColor(color.ToColor32())
+                                                               .ToSKColor();
+                }
+            }
+        }
+
+        return SKImage.FromBitmap(quantizedBitmap);
+    }
+
+    /// <summary>
     ///     Quantizes the given image using the specified quantizer options.
     /// </summary>
     /// <param name="options">
@@ -317,6 +390,59 @@ public static class ImageProcessor
         return new Palette(uniqueColors);
     }
 
+
+    /// <summary>
+    ///     Quantizes multiple images to the specified color palette.
+    /// </summary>
+    /// <param name="palette">
+    ///     The target color palette to quantize the images to.
+    /// </param>
+    /// <param name="ditherer">
+    ///     Optional ditherer to apply during quantization. If null, no dithering will be applied.
+    /// </param>
+    /// <param name="images">
+    ///     The images to be quantized.
+    /// </param>
+    /// <returns>
+    ///     A collection of SKImages quantized to the specified palette.
+    /// </returns>
+    /// <remarks>
+    ///     All provided images will be quantized together to ensure consistent color mapping across all images.
+    /// </remarks>
+    public static SKImageCollection QuantizeMultipleToPalette(Palette palette, IDitherer? ditherer = null, params SKImage[] images)
+    {
+        const int PADDING = 1;
+
+        //create a mosaic of all the individual images
+        using var mosaic = CreateMosaic(PADDING, images);
+        using var quantizedMosaic = QuantizeToPalette(mosaic, palette, ditherer);
+        using var bitmap = SKBitmap.FromImage(quantizedMosaic);
+
+        var quantizedImages = new SKImageCollection([]);
+        var x = 0;
+
+        for (var i = 0; i < images.Length; i++)
+        {
+            var originalImage = images[i];
+            using var quantizedBitmap = new SKBitmap(originalImage.Info);
+
+            //extract the quantized parts out of the mosaic
+            bitmap.ExtractSubset(
+                quantizedBitmap,
+                new SKRectI(
+                    x,
+                    0,
+                    x + originalImage.Width,
+                    originalImage.Height));
+
+            x += quantizedBitmap.Width + PADDING;
+
+            var image = SKImage.FromBitmap(quantizedBitmap);
+            quantizedImages.Add(image);
+        }
+
+        return quantizedImages;
+    }
 
     /// <summary>
     ///     Quantizes the given images using the specified quantizer options
