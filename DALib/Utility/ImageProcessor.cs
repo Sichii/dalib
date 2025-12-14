@@ -59,9 +59,7 @@ public static class ImageProcessor
         PreserveNonTransparentBlacks(bitmap);
 
         var ret = SKImage.FromBitmap(bitmap);
-
-        image.Dispose();
-
+        
         return ret;
     }
 

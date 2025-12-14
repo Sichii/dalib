@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using SkiaSharp;
@@ -13,14 +14,13 @@ namespace DALib.Utility;
 /// </typeparam>
 public sealed class SKImageCache<TKey>(IEqualityComparer<TKey>? comparer = null) : IDisposable where TKey: IEquatable<TKey>
 {
-    private readonly Dictionary<TKey, SKImage> Cache = new(comparer);
+    private readonly ConcurrentDictionary<TKey, SKImage> Cache = new(comparer);
 
     /// <inheritdoc />
     public void Dispose()
     {
-        foreach (var key in Cache.Keys)
-            CollectionsMarshal.GetValueRefOrNullRef(Cache, key)
-                              .Dispose();
+        foreach (var value in Cache.Values)
+            value.Dispose();
 
         Cache.Clear();
     }
@@ -35,15 +35,5 @@ public sealed class SKImageCache<TKey>(IEqualityComparer<TKey>? comparer = null)
     /// <param name="create">
     ///     The function used to create a new SKImage for the specified key.
     /// </param>
-    public SKImage GetOrCreate(TKey key, Func<TKey, SKImage> create)
-    {
-        if (Cache.TryGetValue(key, out var image))
-            return image;
-
-        image = create(key);
-
-        Cache.Add(key, image);
-
-        return image;
-    }
+    public SKImage GetOrCreate(TKey key, Func<TKey, SKImage> create) => Cache.GetOrAdd(key, create);
 }
