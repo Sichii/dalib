@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Frozen;
+using System.Diagnostics;
 using System.Linq;
 using DALib.Definitions;
 using DALib.Drawing;
@@ -65,7 +66,8 @@ public static class PalettizedExtensions
             //render the image with the old palette
             var image = Graphics.RenderImage(frame, palette);
 
-            if (image.Info.BytesSize != frame.Data.Length)
+            //rbga 32bit vs palettized(8bit)
+            if (image.Info.BytesSize != (frame.Data.Length * 4))
             {
                 var rect = new SKRectI(
                     frame.Left,
