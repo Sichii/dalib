@@ -159,9 +159,19 @@ public static class Graphics
     /// </param>
     public static SKImage RenderImage(EfaFrame efa, EfaBlendingType efaBlendingType = EfaBlendingType.Luminance)
     {
+        //we will iterate over the data to render the image
+        var dataWidth = efa.ByteWidth / 2;
+        var dataHeight = efa.ByteCount / efa.ByteWidth;
+
+        //when left/top are negative, skip the padding and shift pixels to 0
+        var dstOffsetX = Math.Max(0, (int)efa.Left);
+        var dstOffsetY = Math.Max(0, (int)efa.Top);
+        var bitmapWidth = Math.Max(efa.ImagePixelWidth, dataWidth + dstOffsetX);
+        var bitmapHeight = Math.Max(efa.ImagePixelHeight, dataHeight + dstOffsetY);
+
         using var bitmap = new SKBitmap(
-            efa.ImagePixelWidth,
-            efa.ImagePixelHeight,
+            bitmapWidth,
+            bitmapHeight,
             SKColorType.Bgra8888,
             SKAlphaType.Unpremul);
 
@@ -174,26 +184,21 @@ public static class Graphics
 
         var reader = new SpanReader(Encoding.Default, efa.Data, Endianness.LittleEndian);
 
-        //we will iterate over the data to render the image
-        var dataWidth = efa.ByteWidth / 2;
-        var dataHeight = efa.ByteCount / efa.ByteWidth;
-
         for (var y = 0; y < dataHeight; y++)
             for (var x = 0; x < dataWidth; x++)
             {
-                //left and top are padding, add them to the x/y
-                var xActual = x + efa.Left;
-                var yActual = y + efa.Top;
+                var xActual = x + dstOffsetX;
+                var yActual = y + dstOffsetY;
 
                 //read the RGB565 color
                 var color = reader.ReadRgb565Color();
 
                 //for some reason these images can have extra trash data on the right and bottom
                 //we avoid it by obeying the frame pixel width/height vs padded x/y
-                if (xActual >= efa.FramePixelWidth)
+                if (x + efa.Left >= efa.FramePixelWidth)
                     continue;
 
-                if (yActual >= efa.FramePixelHeight)
+                if (y + efa.Top >= efa.FramePixelHeight)
                     continue;
 
                 // set alpha based on luminance
@@ -210,7 +215,7 @@ public static class Graphics
                 if (coefficient > 0)
                     color = color.WithLuminanceAlpha(coefficient);
 
-                pixelBuffer[yActual * bitmap.Width + xActual] = color;
+                pixelBuffer[yActual * bitmapWidth + xActual] = color;
             }
 
         return SKImage.FromBitmap(bitmap);
@@ -425,7 +430,13 @@ public static class Graphics
         int height,
         SKColor[] data)
     {
-        using var bitmap = new SKBitmap(width + left, height + top);
+        //when left/top are negative, skip the padding and shift pixels to 0
+        var dstOffsetX = Math.Max(0, left);
+        var dstOffsetY = Math.Max(0, top);
+        var bitmapWidth = width + dstOffsetX;
+        var bitmapHeight = height + dstOffsetY;
+
+        using var bitmap = new SKBitmap(bitmapWidth, bitmapHeight);
         using var pixMap = bitmap.PeekPixels();
 
         var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
@@ -434,8 +445,8 @@ public static class Graphics
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
-                var xActual = x + left;
-                var yActual = y + top;
+                var xActual = x + dstOffsetX;
+                var yActual = y + dstOffsetY;
 
                 var pixelIndex = y * width + x;
                 var color = data[pixelIndex];
@@ -443,7 +454,7 @@ public static class Graphics
                 if ((color == CONSTANTS.Transparent) || (color == SKColors.Black))
                     continue;
 
-                pixelBuffer[yActual * bitmap.Width + xActual] = color;
+                pixelBuffer[yActual * bitmapWidth + xActual] = color;
             }
 
         return SKImage.FromBitmap(bitmap);
@@ -457,7 +468,13 @@ public static class Graphics
         byte[] data,
         Palette palette)
     {
-        using var bitmap = new SKBitmap(width + left, height + top);
+        //when left/top are negative, skip the padding and shift pixels to 0
+        var dstOffsetX = Math.Max(0, left);
+        var dstOffsetY = Math.Max(0, top);
+        var bitmapWidth = width + dstOffsetX;
+        var bitmapHeight = height + dstOffsetY;
+
+        using var bitmap = new SKBitmap(bitmapWidth, bitmapHeight);
         using var pixMap = bitmap.PeekPixels();
 
         var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
@@ -466,8 +483,8 @@ public static class Graphics
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
-                var xActual = x + left;
-                var yActual = y + top;
+                var xActual = x + dstOffsetX;
+                var yActual = y + dstOffsetY;
 
                 var pixelIndex = y * width + x;
                 var paletteIndex = data[pixelIndex];
@@ -475,7 +492,7 @@ public static class Graphics
                 //if the paletteIndex is 0, and that color is pure black or transparent black
                 var color = paletteIndex == 0 ? CONSTANTS.Transparent : palette[paletteIndex];
 
-                pixelBuffer[yActual * bitmap.Width + xActual] = color;
+                pixelBuffer[yActual * bitmapWidth + xActual] = color;
             }
 
         return SKImage.FromBitmap(bitmap);
