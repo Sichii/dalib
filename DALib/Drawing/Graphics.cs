@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using DALib.Data;
 using DALib.Definitions;
@@ -406,6 +407,235 @@ public static class Graphics
     }
 
     /// <summary>
+    ///     Draws a single glyph from a bitmap font into a premultiplied RGBA8888 pixel buffer. Position (x, y) is where
+    ///     column 0 of the glyph cell is placed
+    /// </summary>
+    /// <param name="font">
+    ///     The bitmap font containing the glyph to draw
+    /// </param>
+    /// <param name="pixelBuffer">
+    ///     The destination RGBA8888 pixel buffer
+    /// </param>
+    /// <param name="bufferWidth">
+    ///     The pixel width of the destination buffer. Height is derived from buffer length
+    /// </param>
+    /// <param name="glyphIndex">
+    ///     The index of the glyph to draw
+    /// </param>
+    /// <param name="x">
+    ///     The x position in the buffer where column 0 of the glyph cell is placed
+    /// </param>
+    /// <param name="y">
+    ///     The y position in the buffer where the top of the glyph is placed
+    /// </param>
+    /// <param name="color">
+    ///     The color to draw the glyph in. Alpha is premultiplied internally
+    /// </param>
+    public static void DrawGlyph(
+        FntFile font,
+        Span<byte> pixelBuffer,
+        int bufferWidth,
+        int glyphIndex,
+        int x,
+        int y,
+        SKColor color)
+    {
+        if (!font.IsValidIndex(glyphIndex))
+            return;
+
+        var bufferHeight = pixelBuffer.Length / (bufferWidth * 4);
+
+        var a = color.Alpha;
+        var r = (byte)(color.Red * a / 255);
+        var g = (byte)(color.Green * a / 255);
+        var b = (byte)(color.Blue * a / 255);
+
+        var bytesPerRow = (font.GlyphWidth + 7) / 8;
+        var bytesPerGlyph = bytesPerRow * font.GlyphHeight;
+        var glyphOffset = glyphIndex * bytesPerGlyph;
+
+        for (var row = 0; row < font.GlyphHeight; row++)
+        {
+            var pixelY = y + row;
+
+            if ((uint)pixelY >= (uint)bufferHeight)
+                continue;
+
+            var rowOffset = glyphOffset + row * bytesPerRow;
+
+            for (var byteIdx = 0; byteIdx < bytesPerRow; byteIdx++)
+            {
+                var dataByte = font.Data[rowOffset + byteIdx];
+
+                if (dataByte == 0)
+                    continue;
+
+                for (var bit = 7; bit >= 0; bit--)
+                {
+                    if ((dataByte & (1 << bit)) == 0)
+                        continue;
+
+                    var pixelX = x + byteIdx * 8 + (7 - bit);
+
+                    if ((uint)pixelX >= (uint)bufferWidth)
+                        continue;
+
+                    var pixelOffset = (pixelY * bufferWidth + pixelX) * 4;
+                    pixelBuffer[pixelOffset] = r;
+                    pixelBuffer[pixelOffset + 1] = g;
+                    pixelBuffer[pixelOffset + 2] = b;
+                    pixelBuffer[pixelOffset + 3] = a;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Measures the pixel width of a text string rendered with the specified bitmap font
+    /// </summary>
+    /// <param name="font">
+    ///     The bitmap font to use for measurement
+    /// </param>
+    /// <param name="text">
+    ///     The text string to measure
+    /// </param>
+    public static int MeasureText(FntFile font, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return 0;
+
+        var advance = font.GlyphWidth - 2;
+        var maxWidth = 0;
+        var currentWidth = 0;
+
+        foreach (var c in text)
+        {
+            if (c == '\n')
+            {
+                if (currentWidth > maxWidth)
+                    maxWidth = currentWidth;
+
+                currentWidth = 0;
+
+                continue;
+            }
+
+            currentWidth += advance;
+        }
+
+        if (currentWidth > maxWidth)
+            maxWidth = currentWidth;
+
+        return maxWidth;
+    }
+
+    /// <summary>
+    ///     Renders a text string to an SKImage using the specified bitmap font and color. The font type is detected
+    ///     automatically from its glyph count: 94 glyphs = English (ASCII 33-126), 2401 glyphs = Korean (EUC-KR codepage 949
+    ///     Jamo + syllables). Characters not supported by the font are rendered as blank space
+    /// </summary>
+    /// <param name="font">
+    ///     The bitmap font to render with
+    /// </param>
+    /// <param name="text">
+    ///     The text string to render
+    /// </param>
+    /// <param name="color">
+    ///     The color to render the text in
+    /// </param>
+    public static SKImage RenderText(FntFile font, string text, SKColor color)
+    {
+        if (string.IsNullOrEmpty(text))
+            text = " ";
+
+        var advance = font.GlyphWidth - 2;
+        var lineCount = 1 + text.Count(c => c == '\n');
+        var totalWidth = Math.Max(1, MeasureText(font, text));
+        var totalHeight = font.GlyphHeight * lineCount;
+
+        var pixelBuffer = new byte[totalWidth * totalHeight * 4];
+        var cursorX = 0;
+        var cursorY = 0;
+
+        foreach (var c in text)
+        {
+            if (c == '\n')
+            {
+                cursorX = 0;
+                cursorY += font.GlyphHeight;
+
+                continue;
+            }
+
+            var glyphIndex = GetGlyphIndex(font, c);
+
+            if (glyphIndex >= 0)
+                DrawGlyph(font, pixelBuffer, totalWidth, glyphIndex, cursorX, cursorY, color);
+
+            cursorX += advance;
+        }
+
+        using var bitmap = new SKBitmap(totalWidth, totalHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
+        Marshal.Copy(pixelBuffer, 0, bitmap.GetPixels(), pixelBuffer.Length);
+
+        return SKImage.FromBitmap(bitmap);
+    }
+
+
+    /// <summary>
+    ///     Maps a character to a glyph index within the specified font. Returns -1 if the character is not supported.
+    ///     English fonts (94 glyphs) map ASCII 33-126. Korean fonts (2401 glyphs) map via EUC-KR codepage 949
+    /// </summary>
+    private static int GetGlyphIndex(FntFile font, char c)
+    {
+        //english
+        if (font.GlyphCount == 94)
+        {
+            if (c is >= (char)33 and <= (char)126)
+                return c - 33;
+
+            return -1;
+        }
+
+        //hangul
+        if (font.GlyphCount == 2401)
+        {
+            if (c <= 127)
+                return -1;
+
+            KoreanEncoding ??= Encoding.GetEncoding(949);
+
+            Span<char> chars = [c];
+            Span<byte> bytes = stackalloc byte[2];
+
+            var count = KoreanEncoding.GetBytes(chars, bytes);
+
+            if (count != 2)
+                return -1;
+
+            var lead = bytes[0];
+            var trail = bytes[1];
+
+            // Hangul Jamo: lead 0xA4, trail 0xA1-0xD3 -> indices 0-50
+            if (lead == 0xA4 && trail is >= 0xA1 and <= 0xD3)
+                return trail - 0xA1;
+
+            // Hangul syllables: lead 0xB0-0xC8, trail 0xA1-0xFE -> indices 51-2400
+            if (lead is >= 0xB0 and <= 0xC8 && trail is >= 0xA1 and <= 0xFE)
+                return 51 + (lead - 0xB0) * 94 + (trail - 0xA1);
+
+            return -1;
+        }
+
+        // Unknown font type — try direct ASCII offset
+        var index = c - 33;
+
+        return font.IsValidIndex(index) ? index : -1;
+    }
+
+    private static Encoding? KoreanEncoding;
+
+    /// <summary>
     ///     Renders a Tile
     /// </summary>
     /// <param name="tile">
@@ -494,6 +724,199 @@ public static class Graphics
 
                 pixelBuffer[yActual * bitmapWidth + xActual] = color;
             }
+
+        return SKImage.FromBitmap(bitmap);
+    }
+
+    /// <summary>
+    ///     Renders a single horizontal strip layer from a HeaFile as a grayscale light map image. Light values are scaled
+    ///     from the HEA range (0 to <see cref="HeaFile.MAX_LIGHT_VALUE" />) to full 0-255 intensity
+    /// </summary>
+    /// <param name="hea">
+    ///     The HEA file to render
+    /// </param>
+    /// <param name="layerIndex">
+    ///     The layer index to render (0 to LayerCount - 1)
+    /// </param>
+    public static SKImage RenderImage(HeaFile hea, int layerIndex)
+    {
+        if ((layerIndex < 0) || (layerIndex >= hea.LayerCount))
+            throw new ArgumentOutOfRangeException(nameof(layerIndex));
+
+        var width = hea.GetLayerWidth(layerIndex);
+        var height = hea.ScanlineCount;
+
+        using var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+        using var pixMap = bitmap.PeekPixels();
+        var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
+        pixelBuffer.Fill(SKColors.Black);
+
+        Span<byte> rowBuffer = stackalloc byte[width];
+
+        for (var y = 0; y < height; y++)
+        {
+            hea.DecodeScanline(layerIndex, y, rowBuffer);
+
+            var rowOffset = y * width;
+
+            for (var x = 0; x < width; x++)
+            {
+                var value = rowBuffer[x];
+
+                if (value == 0)
+                    continue;
+
+                var intensity = (byte)Math.Min(255, value * 255 / HeaFile.MAX_LIGHT_VALUE);
+                pixelBuffer[rowOffset + x] = new SKColor(intensity, intensity, intensity, 255);
+            }
+        }
+
+        return SKImage.FromBitmap(bitmap);
+    }
+
+    /// <summary>
+    ///     Renders all layers of a HeaFile stitched together horizontally as a single grayscale light map image.
+    ///     The resulting image has dimensions <see cref="HeaFile.ScanlineWidth" /> x <see cref="HeaFile.ScanlineCount" />
+    /// </summary>
+    /// <param name="hea">
+    ///     The HEA file to render
+    /// </param>
+    public static SKImage RenderImage(HeaFile hea)
+    {
+        var totalWidth = hea.ScanlineWidth;
+        var height = hea.ScanlineCount;
+
+        using var bitmap = new SKBitmap(totalWidth, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+        using var pixMap = bitmap.PeekPixels();
+        var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
+        pixelBuffer.Fill(SKColors.Black);
+
+        Span<byte> rowBuffer = stackalloc byte[HeaFile.LAYER_STRIP_WIDTH];
+
+        for (var layer = 0; layer < hea.LayerCount; layer++)
+        {
+            var layerWidth = hea.GetLayerWidth(layer);
+            var xOffset = hea.Thresholds[layer];
+
+            for (var y = 0; y < height; y++)
+            {
+                hea.DecodeScanline(layer, y, rowBuffer);
+
+                var rowOffset = y * totalWidth;
+
+                for (var x = 0; x < layerWidth; x++)
+                {
+                    var value = rowBuffer[x];
+
+                    if (value == 0)
+                        continue;
+
+                    var intensity = (byte)Math.Min(255, value * 255 / HeaFile.MAX_LIGHT_VALUE);
+                    pixelBuffer[rowOffset + xOffset + x] = new SKColor(intensity, intensity, intensity, 255);
+                }
+            }
+        }
+
+        return SKImage.FromBitmap(bitmap);
+    }
+
+    /// <summary>
+    ///     Renders a single HeaFile layer as an alpha overlay suitable for compositing onto a rendered map. Dark areas produce
+    ///     a semi-opaque black overlay, and lit areas produce transparent or semi-transparent regions
+    /// </summary>
+    /// <param name="hea">
+    ///     The HEA file to render
+    /// </param>
+    /// <param name="layerIndex">
+    ///     The layer index to render (0 to LayerCount - 1)
+    /// </param>
+    /// <param name="darknessOpacity">
+    ///     The alpha value (0-255) applied to fully dark pixels. 255 = fully opaque black overlay, 0 = no darkness overlay.
+    ///     Light values reduce the alpha proportionally
+    /// </param>
+    public static SKImage RenderDarknessOverlay(HeaFile hea, int layerIndex, byte darknessOpacity = 200)
+    {
+        if ((layerIndex < 0) || (layerIndex >= hea.LayerCount))
+            throw new ArgumentOutOfRangeException(nameof(layerIndex));
+
+        var width = hea.GetLayerWidth(layerIndex);
+        var height = hea.ScanlineCount;
+
+        using var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+        using var pixMap = bitmap.PeekPixels();
+        var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
+        pixelBuffer.Fill(new SKColor(0, 0, 0, darknessOpacity));
+
+        Span<byte> rowBuffer = stackalloc byte[width];
+
+        for (var y = 0; y < height; y++)
+        {
+            hea.DecodeScanline(layerIndex, y, rowBuffer);
+
+            var rowOffset = y * width;
+
+            for (var x = 0; x < width; x++)
+            {
+                var value = rowBuffer[x];
+
+                if (value == 0)
+                    continue;
+
+                var lightRatio = Math.Min(1.0f, (float)value / HeaFile.MAX_LIGHT_VALUE);
+                var alpha = (byte)(darknessOpacity * (1.0f - lightRatio));
+                pixelBuffer[rowOffset + x] = new SKColor(0, 0, 0, alpha);
+            }
+        }
+
+        return SKImage.FromBitmap(bitmap);
+    }
+
+    /// <summary>
+    ///     Renders all layers of a HeaFile stitched together as a full-width alpha overlay
+    /// </summary>
+    /// <param name="hea">
+    ///     The HEA file to render
+    /// </param>
+    /// <param name="darknessOpacity">
+    ///     The alpha value (0-255) applied to fully dark pixels. 255 = fully opaque black overlay, 0 = no darkness overlay.
+    ///     Light values reduce the alpha proportionally
+    /// </param>
+    public static SKImage RenderDarknessOverlay(HeaFile hea, byte darknessOpacity = 200)
+    {
+        var totalWidth = hea.ScanlineWidth;
+        var height = hea.ScanlineCount;
+
+        using var bitmap = new SKBitmap(totalWidth, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+        using var pixMap = bitmap.PeekPixels();
+        var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
+        pixelBuffer.Fill(new SKColor(0, 0, 0, darknessOpacity));
+
+        Span<byte> rowBuffer = stackalloc byte[HeaFile.LAYER_STRIP_WIDTH];
+
+        for (var layer = 0; layer < hea.LayerCount; layer++)
+        {
+            var layerWidth = hea.GetLayerWidth(layer);
+            var xOffset = hea.Thresholds[layer];
+
+            for (var y = 0; y < height; y++)
+            {
+                hea.DecodeScanline(layer, y, rowBuffer);
+
+                var rowOffset = y * totalWidth;
+
+                for (var x = 0; x < layerWidth; x++)
+                {
+                    var value = rowBuffer[x];
+
+                    if (value == 0)
+                        continue;
+
+                    var lightRatio = Math.Min(1.0f, (float)value / HeaFile.MAX_LIGHT_VALUE);
+                    var alpha = (byte)(darknessOpacity * (1.0f - lightRatio));
+                    pixelBuffer[rowOffset + xOffset + x] = new SKColor(0, 0, 0, alpha);
+                }
+            }
+        }
 
         return SKImage.FromBitmap(bitmap);
     }

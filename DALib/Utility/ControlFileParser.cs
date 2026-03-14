@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using DALib.Definitions;
 using DALib.Drawing;
+using KGySoft.CoreLibraries;
 using SkiaSharp;
 
 namespace DALib.Utility;
@@ -26,7 +29,37 @@ public sealed class ControlFileParser
             }
             case TokenType.EndControl:
             {
-                controlFile.Add(currentControl!);
+                //if the control has images
+                if (currentControl?.Images?.Count > 0)
+                {
+                    var images = currentControl.Images;
+                    var currentIndex = 0;
+                    var expandedImages = new List<(string ImageName, int FrameIndex)>();
+            
+                    //expand the image list
+                    //the control files only give us the first and last image indexes, we need to fill in the rest outselves
+                    while (true)
+                    {
+                        var firstEntry = images[currentIndex];
+                        var startIndex = images.FindIndex(pair => pair.ImageName.Equals(firstEntry.ImageName));
+                        var endIndex = images.FindLastIndex(pair => pair.ImageName.Equals(firstEntry.ImageName));
+
+                        var startNum = images[startIndex].FrameIndex;
+                        var endNum = images[endIndex].FrameIndex;
+                        
+                        for (var i = startNum; i <= endNum; i++)
+                            expandedImages.Add((firstEntry.ImageName, i));
+
+                        currentIndex = endIndex + 1;
+
+                        if (currentIndex >= images.Count)
+                            break;
+                    }
+            
+                    currentControl.Images = expandedImages;
+                }
+                
+                controlFile.TryAdd(currentControl!, throwError: false);
                 currentControl = null;
 
                 break;
