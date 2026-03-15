@@ -1,0 +1,76 @@
+name: Package and upload DALib NuGet package to nuget.org
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The tag to be used for the release"
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    if: github.repository == 'eriscorp/dalib'
+    runs-on: ubuntu-latest
+    environment: deploy
+    strategy:
+      matrix:
+        dotnet-version: ['10.0.x']
+
+    steps:
+      - if: "${{ github.event.inputs.tag == '' }}"
+        run: echo "TAG=${{ github.ref_name }}" | sed -e 's/v//' >> $GITHUB_ENV
+      - if: "${{ github.event.inputs.tag != '' }}"
+        run: echo "TAG=${{ github.event.inputs.tag }}" | sed -e 's/v//' >> $GITHUB_ENV
+      - name: Display tag
+        run: echo "[${{ github.event.inputs.tag }}] - Now building DALib tag ${{ env.TAG }}"
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up .NET SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+      - name: Install dependencies
+        run: dotnet restore
+      - name: run tests
+        run: dotnet test --no-restore --verbosity normal
+      - run: mkdir ${GITHUB_WORKSPACE}/signed; mkdir ${GITHUB_WORKSPACE}/packages
+      - name: Make nuget package
+        run: dotnet pack -o ${GITHUB_WORKSPACE}/packages
+      - run: ls ${GITHUB_WORKSPACE}/packages
+      - name: Sign package
+        uses: sslcom/esigner-codesign@develop
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.ES_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${GITHUB_WORKSPACE}/packages/DALib.${TAG}.nupkg
+          output_path: ${GITHUB_WORKSPACE}/signed
+          malware_block: false
+          override: false
+          clean_logs: true
+          signing_method: v1
+          jvm_max_memory: 1024M
+      - run: ls ${GITHUB_WORKSPACE}/signed
+      - name: NuGet login (OIDC)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Push to NuGet
+        run: dotnet nuget push ${GITHUB_WORKSPACE}/signed/DALib.${TAG}.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+      - name: Discord notification
+        uses: Ilshidur/action-discord@master
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with: 
+          args: "DALib: version ${{ env.TAG }} has been pushed to nuget.org"

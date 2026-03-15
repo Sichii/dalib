@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace DALib.IO;
 
@@ -92,5 +94,105 @@ public static class Compression
         }
 
         buffer = rawBytes[..m];
+    }
+    
+    public static byte[] CompressHpf(Span<byte> buffer)
+    {
+        Span<uint> intOdd   = stackalloc uint[256];
+        Span<uint> intEven  = stackalloc uint[256];
+        Span<byte> bytePair = stackalloc byte[513];
+
+        for (uint i = 0; i < 256; i++)
+        {
+            intOdd   [(int)i] = 2 * i + 1;
+            intEven  [(int)i] = 2 * i + 2;
+            bytePair [(int)(i * 2 + 1)] = (byte)i;
+            bytePair [(int)(i * 2 + 2)] = (byte)i;
+        }
+
+        var bits = new List<bool>(buffer.Length * 8);
+
+        for (int byteIndex = 0; byteIndex <= buffer.Length; byteIndex++)
+        {
+            uint symbol = byteIndex < buffer.Length ? buffer[byteIndex] : 0x100u;
+            uint targetNode = symbol + 0x100;
+            uint currentNode = 0;
+
+            while (currentNode != targetNode)
+            {
+                if (IsNodeInSubtree(targetNode, intOdd[(int)currentNode], intOdd, intEven))
+                {
+                    bits.Add(false);
+                    currentNode = intOdd[(int)currentNode];
+                }
+                else if (IsNodeInSubtree(targetNode, intEven[(int)currentNode], intOdd, intEven))
+                {
+                    bits.Add(true);
+                    currentNode = intEven[(int)currentNode];
+                }
+                else
+                    throw new InvalidDataException($"Cannot reach node {targetNode} from {currentNode}");
+            }
+
+            uint val  = targetNode;
+            uint val3 = val;
+            uint val2 = bytePair[(int)val];
+
+            while ((val3 != 0) && (val2 != 0))
+            {
+                byte idx = bytePair[(int)val2];
+                uint j   = intOdd[(int)idx];
+
+                if (j == val2)
+                {
+                    j = intEven[(int)idx];
+                    intEven[(int)idx] = val3;
+                }
+                else
+                {
+                    intOdd[(int)idx] = val3;
+                }
+
+                if (intOdd[(int)val2] == val3)
+                    intOdd[(int)val2] = j;
+                else
+                    intEven[(int)val2] = j;
+
+                bytePair[(int)val3] = idx;
+                bytePair[(int)j] = (byte)val2;
+                val3 = idx;
+                val2 = bytePair[(int)val3];
+            }
+        }
+
+        var compressedSize = (bits.Count + 7) / 8;
+        var compressedData = new byte[compressedSize];
+
+        for (var i = 0; i < bits.Count; i++)
+        {
+            if (bits[i])
+            {
+                int byteIdx = i / 8;
+                int bitIdx  = i % 8;
+                compressedData[byteIdx] |= (byte)(1 << bitIdx);
+            }
+        }
+
+        var output = new byte[4 + compressedSize];
+        output[0] = 0x55;
+        output[1] = 0xAA;
+        output[2] = 0x02;
+        output[3] = 0xFF;
+
+        compressedData.CopyTo(output.AsSpan(4));
+        return output;
+    }
+
+    private static bool IsNodeInSubtree(uint target, uint root, Span<uint> intOdd, Span<uint> intEven)
+    {
+        if (root == target) return true;
+        if (root > 0xFF) return false;
+        return IsNodeInSubtree(target, intOdd[(int)root], intOdd, intEven) ||
+               IsNodeInSubtree(target, intEven[(int)root], intOdd, intEven);
     }
 }

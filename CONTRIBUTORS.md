@@ -2,3 +2,4 @@
 @kojasou - first implementation of library
 @baughj - github actions / nuget packaging
 @norrismiv - bug fixing, cleanup of first implementation of library
+@wren11 - HPF compression, tests

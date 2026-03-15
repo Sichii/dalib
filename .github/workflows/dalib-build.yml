@@ -1,4 +1,4 @@
-name: XML packaging and testing
+name: Build library and test
 
 on:
   push:
@@ -8,25 +8,31 @@ on:
 
 jobs:
   build:
-    if: github.repository == 'eriscorp/dalib'
     runs-on: ubuntu-latest
     environment: deploy
     strategy:
       matrix:
-        dotnet-version: ['8.0.x']
+        dotnet-version: ['10.0.x']
 
     steps:
+      - id: get_short_sha
+        run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
       - name: Check out source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Set up .NET SDK ${{ matrix.dotnet-version }}
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
-      - name: Install jq tool
-        run: |
-          sudo apt-get update
-          sudo apt-get install jq
       - name: Install dependencies
         run: dotnet restore
       - name: Build
         run: dotnet build --configuration Release --no-restore
+      - name: run tests
+        run: dotnet test --no-restore --verbosity normal
+      - name: Discord notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@0.3.2
+        continue-on-error: true
+        with: 
+          args: "dalib/${{ env.SHORT_SHA }}: tests passed!"
