@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using DALib.Abstractions;
 using DALib.Data;
 using DALib.Extensions;
+using SkiaSharp;
 
 namespace DALib.Drawing;
 
@@ -276,6 +278,131 @@ public sealed class HeaFile : ISavable
         using var segment = entry.ToStreamSegment();
 
         return new HeaFile(segment);
+    }
+
+    /// <summary>
+    ///     Creates a HeaFile from an SKImage by converting the alpha channel to RLE-encoded light data.
+    ///     If the image is smaller than the expected padded dimensions
+    ///     (<c>28 * (tileWidth + tileHeight) + 1280</c> x <c>14 * (tileWidth + tileHeight) + 960</c>),
+    ///     it is centered within the full light map with dark (alpha 0) padding.
+    ///     Alpha 0 maps to light value 0 (fully dark) and alpha 255 maps to <see cref="MAX_LIGHT_VALUE" /> (maximum brightness)
+    /// </summary>
+    /// <param name="image">
+    ///     The source image whose alpha channel represents light intensity
+    /// </param>
+    /// <param name="tileWidth">
+    ///     The map tile width in pixels
+    /// </param>
+    /// <param name="tileHeight">
+    ///     The map tile height in pixels
+    /// </param>
+    public static HeaFile FromImage(SKImage image, int tileWidth, int tileHeight)
+    {
+        const int SCREEN_WIDTH = 640;
+        const int SCREEN_HEIGHT = 480;
+
+        var scanW = 28 * (tileWidth + tileHeight) + SCREEN_WIDTH * 2;
+        var scanH = 14 * (tileWidth + tileHeight) + SCREEN_HEIGHT * 2;
+
+        // compute where the image is placed within the padded light map
+        var padX = (scanW - image.Width) / 2;
+        var padY = (scanH - image.Height) / 2;
+
+        var layerCount = (int)Math.Ceiling(scanW / (double)LAYER_STRIP_WIDTH);
+
+        var hea = new HeaFile
+        {
+            ScreenWidth = SCREEN_WIDTH,
+            ScreenHeight = SCREEN_HEIGHT,
+            TileWidth = tileWidth,
+            TileHeight = tileHeight,
+            ScanlineWidth = scanW,
+            ScanlineCount = scanH,
+            LayerCount = layerCount
+        };
+
+        hea.Thresholds = new int[layerCount];
+
+        for (var i = 0; i < layerCount; i++)
+            hea.Thresholds[i] = i * LAYER_STRIP_WIDTH;
+
+        // read pixel data from the image
+        using var bitmap = SKBitmap.FromImage(image);
+        using var pixMap = bitmap.PeekPixels();
+        var pixels = pixMap.GetPixelSpan<SKColor>();
+        var imgW = image.Width;
+        var imgH = image.Height;
+
+        // RLE encode each scanline as a full-width stream (all ScanlineWidth pixels).
+        // Each layer's offset for a given row points into the shared stream at the
+        // position where that layer's threshold pixel begins.
+        // Runs must be split at layer thresholds so each layer's offset starts a fresh pair
+        using var rleStream = new MemoryStream();
+
+        var scanlineOffsets = new int[layerCount * scanH];
+
+        // precompute the set of pixel columns where runs must be split (the thresholds)
+        var splitPoints = new HashSet<int>(layerCount);
+
+        for (var i = 0; i < layerCount; i++)
+            splitPoints.Add(hea.Thresholds[i]);
+
+        var wordOffset = 0;
+
+        for (var y = 0; y < scanH; y++)
+        {
+            var nextThreshold = 0;
+            var pixelIndex = 0;
+
+            while (pixelIndex < scanW)
+            {
+                // record layer offsets for any thresholds at this pixel position
+                if (splitPoints.Contains(pixelIndex))
+                {
+                    scanlineOffsets[nextThreshold * scanH + y] = wordOffset;
+                    nextThreshold++;
+                }
+
+                var value = SampleLight(pixels, pixelIndex, y, padX, padY, imgW, imgH);
+                var count = 1;
+
+                while ((pixelIndex + count) < scanW)
+                {
+                    // stop at layer boundaries so the next layer starts a fresh pair
+                    if (splitPoints.Contains(pixelIndex + count))
+                        break;
+
+                    var nextValue = SampleLight(pixels, pixelIndex + count, y, padX, padY, imgW, imgH);
+
+                    if ((nextValue != value) || (count >= 255))
+                        break;
+
+                    count++;
+                }
+
+                rleStream.WriteByte(value);
+                rleStream.WriteByte((byte)count);
+                wordOffset++;
+
+                pixelIndex += count;
+            }
+        }
+
+        hea.ScanlineOffsets = scanlineOffsets;
+        hea.RleData = rleStream.ToArray();
+
+        return hea;
+    }
+
+    private static byte SampleLight(ReadOnlySpan<SKColor> pixels, int gx, int gy, int padX, int padY, int imgW, int imgH)
+    {
+        var ix = gx - padX;
+        var iy = gy - padY;
+
+        if ((ix < 0) || (ix >= imgW) || (iy < 0) || (iy >= imgH))
+            return 0;
+
+        return (byte)((pixels[iy * imgW + ix].Alpha * MAX_LIGHT_VALUE + 127) / 255);
     }
     #endregion
 
