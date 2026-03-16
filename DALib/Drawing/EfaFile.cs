@@ -11,13 +11,15 @@ using DALib.Definitions;
 using DALib.Extensions;
 using DALib.IO;
 using DALib.Memory;
+using DALib.Utility;
 using SkiaSharp;
 
 namespace DALib.Drawing;
 
 /// <summary>
 ///     Represents an image file with the ".efa" extension. This image format supports one or more fully colorized images
-///     encoded in RGB565, ZLIB compressed image data, luminance-based alpha blending, and a hard coded frame interval
+///     encoded in RGB565 (rendered in RGB555), ZLIB compressed image data, multiple blend modes, and a hard coded frame
+///     interval
 /// </summary>
 public sealed class EfaFile : Collection<EfaFrame>, ISavable
 {
@@ -47,7 +49,7 @@ public sealed class EfaFile : Collection<EfaFrame>, ISavable
     public EfaFile()
     {
         Unknown1 = 0;
-        BlendingType = EfaBlendingType.Luminance;
+        BlendingType = EfaBlendingType.Additive;
         FrameIntervalMs = 50;
         Unknown2 = new byte[51];
     }
@@ -204,6 +206,7 @@ public sealed class EfaFile : Collection<EfaFrame>, ISavable
             var image = orderedFrames[i];
 
             using var bitmap = SKBitmap.FromImage(image);
+            ImageProcessor.PreserveNonTransparentBlacks(bitmap);
 
             byte[] rawBytes;
 
@@ -266,18 +269,16 @@ public sealed class EfaFile : Collection<EfaFrame>, ISavable
         decompressed[..frame.ByteCount]
             .CopyTo(frame.Data);
 
-        /*
-        //Not sure what these numbers are
-        var reader = new SpanReader(Encoding.Default, decompressed[frame.ByteCount..], Endianness.LittleEndian);
+        //alpha surface data follows the RGB pixel data for SeparateAlpha and PerChannelAlpha blend types
+        var alphaLength = frame.DecompressedSize - frame.ByteCount;
 
-        //not even sure if these should be ushort
-        //could they be colors? transparency map?
-        //the length of the tail data seems relevant to the size of the image
-        var nums = new List<byte>();
+        if (alphaLength > 0)
+        {
+            frame.AlphaData = new byte[alphaLength];
 
-        while (!reader.EndOfSpan)
-            nums.Add(reader.ReadByte());
-        */
+            decompressed[frame.ByteCount..]
+                .CopyTo(frame.AlphaData);
+        }
     }
     #endregion
 
@@ -317,11 +318,16 @@ public sealed class EfaFile : Collection<EfaFrame>, ISavable
         {
             var frame = this[i];
 
-            //compress the frame data and store it to be written later
+            //compress the frame data (and alpha surface if present) and store it to be written later
             using var compressed = new MemoryStream();
 
             using (var compressor = new ZLibStream(compressed, CompressionLevel.Optimal, true))
+            {
                 compressor.Write(frame.Data, 0, frame.Data.Length);
+
+                if (frame.AlphaData is { Length: > 0 })
+                    compressor.Write(frame.AlphaData, 0, frame.AlphaData.Length);
+            }
 
             var compressedBytes = compressed.ToArray();
             var compressedSize = compressedBytes.Length;

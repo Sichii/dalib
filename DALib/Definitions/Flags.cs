@@ -19,7 +19,9 @@ public enum TileFlags : byte
     Wall = 15,
 
     /// <summary>
-    ///     Tile has luminosity based transparency (dark = more transparent)
+    ///     Tile uses screen blend compositing (output = src + dst * (1 - src) per channel). The client renders these with
+    ///     mode 0x6D, where each color channel's value acts as its own alpha. Black pixels are fully transparent, white
+    ///     pixels fully opaque
     /// </summary>
     Transparent = 128
 }

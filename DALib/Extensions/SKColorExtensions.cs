@@ -10,6 +10,25 @@ namespace DALib.Extensions;
 public static class SKColorExtensions
 {
     /// <summary>
+    ///     The client's 11-entry alpha lookup table used for effect transparency. Maps max-channel / 25 (index 0-10) to a
+    ///     blend level (0-10). Extracted from DAT_006d1f08 in the client
+    /// </summary>
+    private static readonly byte[] ALPHA_LUT =
+    [
+        0,
+        0,
+        0,
+        1,
+        2,
+        3,
+        5,
+        6,
+        7,
+        9,
+        10
+    ];
+
+    /// <summary>
     ///     Adjusts the brightness of an image by a percentage
     /// </summary>
     public static SKBitmap AdjustBrightness(this SKBitmap bitmap, float percent)
@@ -138,21 +157,26 @@ public static class SKColorExtensions
     }
 
     /// <summary>
-    ///     Returns a new SKColor with the alpha set based on the luminance of the color
+    ///     Returns a new SKColor with the alpha set based on the max channel value (HSV Value component) of the color. This
+    ///     matches the Dark Ages client's transparency algorithm for EFA effects and EPF sprites with palette >= 1000. The
+    ///     client uses max(R, G, B) — not weighted luminance — to determine a 10-level alpha blend via a lookup table
     /// </summary>
     /// <param name="color">
     ///     An SKColor
     /// </param>
     /// <param name="coefficient">
-    ///     The coefficient to multiply the luminance alpha by. Default value is 1.0f.
+    ///     A multiplier applied to the final alpha value. Default value is 1.0f. Values greater than 1.0 make the result more
+    ///     opaque
     /// </param>
     /// <returns>
-    ///     A new SKColor with the alpha set.
+    ///     A new SKColor with the alpha set
     /// </returns>
-    public static SKColor WithLuminanceAlpha(this SKColor color, float coefficient = 1.0f)
+    public static SKColor WithLutAlpha(this SKColor color, float coefficient = 1.0f)
     {
-        var luminance = color.GetLuminance(coefficient);
+        var maxChannel = Math.Max(color.Red, Math.Max(color.Green, color.Blue));
+        var tableIndex = Math.Min(maxChannel / 25, 10);
+        var alpha = (byte)Math.Clamp(ALPHA_LUT[tableIndex] * 255.0 / 10.0 * coefficient, 0, 255);
 
-        return color.WithAlpha((byte)Math.Clamp(luminance, 0, byte.MaxValue));
+        return color.WithAlpha(alpha);
     }
 }

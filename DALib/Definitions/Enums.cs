@@ -23,25 +23,33 @@ public enum Endianness
 }
 
 /// <summary>
-///     Represents the different types of alpha blending used by EFA files
+///     Represents the different blend modes used by EFA files. All EFA rendering operates in RGB555
 /// </summary>
 public enum EfaBlendingType : byte
 {
     /// <summary>
-    ///     Transparency is added by the client based on the luminance of the pixel
+    ///     Saturated additive blend: each channel is added to the destination and clamped to max (min(srcCh + dstCh, 31) in
+    ///     RGB555). No alpha — source colors are added directly. Used for glow effects, fire, and light
     /// </summary>
-    Luminance = 1,
+    Additive = 1,
 
     /// <summary>
-    ///     Transparency is added by the client based on the luminance of the pixel. Slightly less transparent than "Luminance"
+    ///     Per-channel self-alpha blend: each channel's value serves as its own alpha. Bright channels are opaque, dark channels
+    ///     are transparent. Formula: result_ch = (srcCh * 32 + dstCh * (32 - srcCh)) >> 5. Effectively a screen blend
     /// </summary>
-    LessLuminance = 2,
+    SelfAlpha = 2,
 
     /// <summary>
-    ///     Transparency is added by the client through some mechanism. Appears to be flood fill, but it only seems to work on
-    ///     like 3 effects. Other effects that try to use this option will not render at all.
+    ///     Standard alpha blend using a separate per-pixel alpha surface encoded in the EFA data (RLE or raw). The alpha value
+    ///     is a single scalar applied uniformly to all three channels
     /// </summary>
-    NotSure = 3
+    SeparateAlpha = 3,
+
+    /// <summary>
+    ///     Alpha blend using a separate per-channel alpha surface. Like SeparateAlpha but the alpha surface provides independent
+    ///     alpha values for each color channel
+    /// </summary>
+    PerChannelAlpha = 4
 }
 
 /// <summary>

@@ -69,7 +69,7 @@ public class PaletteLookup
             {
                 var color = palette[i];
 
-                blendedPalette[i] = color.WithLuminanceAlpha();
+                blendedPalette[i] = color.WithLutAlpha();
             }
 
             return blendedPalette;

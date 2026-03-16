@@ -1,10 +1,20 @@
-﻿namespace DALib.Drawing;
+﻿using DALib.Definitions;
+
+namespace DALib.Drawing;
 
 /// <summary>
 ///     Represents a frame in an EfaFile
 /// </summary>
 public sealed class EfaFrame
 {
+    /// <summary>
+    ///     Optional alpha surface data that follows the RGB pixel data in the decompressed stream. Present for
+    ///     <see cref="EfaBlendingType.SeparateAlpha" /> and <see cref="EfaBlendingType.PerChannelAlpha" /> blend types. For
+    ///     SeparateAlpha, this is either raw or RLE-encoded per-pixel alpha (0-31 range). For PerChannelAlpha, this is
+    ///     per-channel alpha encoded as RGB555 (2 bytes per pixel)
+    /// </summary>
+    public byte[]? AlphaData { get; set; }
+
     /// <summary>
     ///     The number of bytes of colorized data this frame contains
     /// </summary>
