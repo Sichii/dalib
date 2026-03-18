@@ -1,4 +1,5 @@
-﻿using System;
+﻿#region
+using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -8,6 +9,7 @@ using DALib.Extensions;
 using DALib.Memory;
 using DALib.Utility;
 using SkiaSharp;
+#endregion
 
 namespace DALib.Drawing;
 
@@ -629,6 +631,14 @@ public static class Graphics
                 switch (efaBlendingType)
                 {
                     case EfaBlendingType.Additive:
+                    {
+                        // Additive: keep full RGB, set alpha to 255. The renderer draws these
+                        // with BlendState.Additive (src + dst), so black pixels add nothing
+                        // and bright pixels glow. No alpha approximation needed.
+                        color = color.WithAlpha(255);
+
+                        break;
+                    }
                     case EfaBlendingType.SelfAlpha:
                     {
                         var alpha = Math.Max(color.Red, Math.Max(color.Green, color.Blue));
@@ -969,9 +979,7 @@ public static class Graphics
             return SKImage.FromBitmap(bitmap);
 
             bool IsScreenBlendTile(int fgIndex)
-                => (fgIndex > 0)
-                   && ((fgIndex - 1) < sotpData.Length)
-                   && ((TileFlags)sotpData[fgIndex - 1]).HasFlag(TileFlags.Transparent);
+                => (fgIndex > 0) && ((fgIndex - 1) < sotpData.Length) && ((TileFlags)sotpData[fgIndex - 1]).HasFlag(TileFlags.Transparent);
         } finally
         {
             if (dispose)

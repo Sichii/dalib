@@ -1,3 +1,4 @@
+#region
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -13,6 +14,7 @@ using DALib.IO;
 using DALib.Memory;
 using DALib.Utility;
 using SkiaSharp;
+#endregion
 
 namespace DALib.Drawing;
 
@@ -206,7 +208,11 @@ public sealed class EfaFile : Collection<EfaFrame>, ISavable
             var image = orderedFrames[i];
 
             using var bitmap = SKBitmap.FromImage(image);
-            ImageProcessor.PreserveNonTransparentBlacks(bitmap);
+
+            // Only preserve blacks for non-additive effects. For Additive, black pixels
+            // are correctly "add nothing" and should not be converted to near-black.
+            if (efaFile.BlendingType != EfaBlendingType.Additive)
+                ImageProcessor.PreserveNonTransparentBlacks(bitmap);
 
             byte[] rawBytes;
 
