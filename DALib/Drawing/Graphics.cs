@@ -634,15 +634,14 @@ public static class Graphics
                     {
                         // Additive: keep full RGB, set alpha to 255. The renderer draws these
                         // with BlendState.Additive (src + dst), so black pixels add nothing
-                        // and bright pixels glow. No alpha approximation needed.
                         color = color.WithAlpha(255);
 
                         break;
                     }
                     case EfaBlendingType.SelfAlpha:
                     {
-                        var alpha = Math.Max(color.Red, Math.Max(color.Green, color.Blue));
-                        color = color.WithAlpha(alpha);
+                        // SelfAlpha: original DA does per-channel blend (output = src + dst * (1 - src/255)).
+                        color = color.WithAlpha(255);
 
                         break;
                     }

@@ -29,13 +29,13 @@ public enum EfaBlendingType : byte
 {
     /// <summary>
     ///     Saturated additive blend: each channel is added to the destination and clamped to max (min(srcCh + dstCh, 31) in
-    ///     RGB555). No alpha — source colors are added directly. Used for glow effects, fire, and light
+    ///     RGB555). Use SKBlendMode.Plus for accurate blending
     /// </summary>
     Additive = 1,
 
     /// <summary>
-    ///     Per-channel self-alpha blend: each channel's value serves as its own alpha. Bright channels are opaque, dark channels
-    ///     are transparent. Formula: result_ch = (srcCh * 32 + dstCh * (32 - srcCh)) >> 5. Effectively a screen blend
+    ///     Per-channel self-alpha blend: each channel's value serves as its own alpha. Bright channels are opaque, dark
+    ///     channels are transparent. Formula: result_ch = (srcCh * 32 + dstCh * (32 - srcCh)) >> 5. Use SKBlendMode.Screen for accurate blending
     /// </summary>
     SelfAlpha = 2,
 
@@ -46,8 +46,8 @@ public enum EfaBlendingType : byte
     SeparateAlpha = 3,
 
     /// <summary>
-    ///     Alpha blend using a separate per-channel alpha surface. Like SeparateAlpha but the alpha surface provides independent
-    ///     alpha values for each color channel
+    ///     Alpha blend using a separate per-channel alpha surface. Like SeparateAlpha but the alpha surface provides
+    ///     independent alpha values for each color channel
     /// </summary>
     PerChannelAlpha = 4
 }

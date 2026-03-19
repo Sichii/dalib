@@ -1,8 +1,10 @@
-﻿using DALib.Abstractions;
-using DALib.Drawing;
-using DALib.Extensions;
+﻿#region
 using System.IO;
 using System.Text;
+using DALib.Abstractions;
+using DALib.Drawing;
+using DALib.Extensions;
+#endregion
 
 namespace DALib.Data;
 
@@ -145,10 +147,10 @@ public sealed class MapTile
     /// <summary>
     ///     The id of the left foreground part of the tile. This id references an HPF image loaded from ia.dat
     /// </summary>
-    public int LeftForeground { get; init; }
+    public int LeftForeground { get; set; }
 
     /// <summary>
     ///     The id of the right foreground part of the tile. This id references an HPF image loaded from ia.dat
     /// </summary>
-    public int RightForeground { get; init; }
+    public int RightForeground { get; set; }
 }
