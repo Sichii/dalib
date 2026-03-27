@@ -12,7 +12,7 @@ public sealed class PaletteCyclingEntry
     public int EndIndex { get; set; }
 
     /// <summary>
-    ///     The number of frames between each rotation step
+    ///     The number of 100ms intervals between each cycle
     /// </summary>
     public int Period { get; set; }
 
