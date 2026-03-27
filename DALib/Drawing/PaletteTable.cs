@@ -1,4 +1,5 @@
-﻿using System;
+﻿#region
+using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
@@ -8,6 +9,7 @@ using DALib.Abstractions;
 using DALib.Data;
 using DALib.Definitions;
 using DALib.Extensions;
+#endregion
 
 namespace DALib.Drawing;
 
@@ -22,6 +24,12 @@ namespace DALib.Drawing;
 /// </remarks>
 public class PaletteTable : ISavable
 {
+    /// <summary>
+    ///     Palette cycling definitions keyed by palette number. Each palette may have multiple cycling ranges that define
+    ///     which palette indices rotate to create animated effects like water shimmer (e.g. canals water).
+    /// </summary>
+    protected IDictionary<int, List<PaletteCyclingEntry>> CyclingEntries { get; set; } = new Dictionary<int, List<PaletteCyclingEntry>>();
+
     /// <summary>
     ///     The entries in the palette table
     /// </summary>
@@ -143,6 +151,18 @@ public class PaletteTable : ISavable
     public virtual PaletteTable Freeze() => new FrozenPaletteTable(this);
 
     /// <summary>
+    ///     Gets the cycling entries for the specified palette number
+    /// </summary>
+    /// <param name="paletteNumber">
+    ///     The palette number to look up cycling entries for
+    /// </param>
+    /// <returns>
+    ///     The list of cycling entries for the palette, or null if the palette has no cycling
+    /// </returns>
+    public IReadOnlyList<PaletteCyclingEntry>? GetCyclingEntries(int paletteNumber)
+        => CyclingEntries.TryGetValue(paletteNumber, out var entries) ? entries : null;
+
+    /// <summary>
     ///     Gets the palette number for the specified id
     /// </summary>
     /// <param name="id">
@@ -188,6 +208,9 @@ public class PaletteTable : ISavable
 
         foreach (var kvp in other.Entries)
             Entries[kvp.Key] = kvp.Value;
+
+        foreach (var kvp in other.CyclingEntries)
+            CyclingEntries[kvp.Key] = kvp.Value;
     }
 
     /// <summary>
@@ -214,6 +237,7 @@ public class PaletteTable : ISavable
             FemaleOverrides = FemaleOverrides.ToFrozenDictionary();
             Entries = Entries.ToFrozenDictionary();
             Overrides = Overrides.ToFrozenDictionary();
+            CyclingEntries = CyclingEntries.ToFrozenDictionary();
         }
 
         public override void Add(int id, int paletteNumber, KhanPalOverrideType overrideType = KhanPalOverrideType.None)
@@ -313,13 +337,46 @@ public class PaletteTable : ISavable
         var table = new PaletteTable();
 
         foreach (var entry in archive.GetEntries(pattern, ".tbl"))
-        {
-            var tablePart = FromEntry(entry);
+            if (entry.TryGetNumericIdentifier(out var associatedPaletteNumber))
+            {
+                var cyclingEntries = ParseCyclingFile(entry);
 
-            table.Merge(tablePart);
-        }
+                if (cyclingEntries.Count > 0)
+                    table.CyclingEntries[associatedPaletteNumber] = cyclingEntries;
+            } else
+            {
+                var tablePart = FromEntry(entry);
+
+                table.Merge(tablePart);
+            }
 
         return table;
+    }
+
+    private static List<PaletteCyclingEntry> ParseCyclingFile(DataArchiveEntry entry)
+    {
+        var entries = new List<PaletteCyclingEntry>();
+
+        using var segment = entry.ToStreamSegment();
+        using var reader = new StreamReader(segment, Encoding.UTF8, leaveOpen: true);
+
+        while (!reader.EndOfStream)
+        {
+            var line = reader.ReadLine();
+
+            if (string.IsNullOrEmpty(line))
+                continue;
+
+            var vals = line.Split(' ');
+
+            if ((vals.Length == 3)
+                && int.TryParse(vals[0], out var start)
+                && int.TryParse(vals[1], out var end)
+                && int.TryParse(vals[2], out var period))
+                entries.Add(new PaletteCyclingEntry(start, end, period));
+        }
+
+        return entries;
     }
 
     /// <summary>

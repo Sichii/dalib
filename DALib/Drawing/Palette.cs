@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿#region
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ using DALib.Data;
 using DALib.Definitions;
 using DALib.Extensions;
 using SkiaSharp;
+#endregion
 
 namespace DALib.Drawing;
 
@@ -45,6 +47,36 @@ public sealed class Palette : Collection<SKColor>, ISavable
 
         foreach (var color in colors)
             this[index++] = color;
+    }
+
+    /// <summary>
+    ///     Creates a new palette with colors cycled within the specified index range based on the given stage
+    /// </summary>
+    /// <param name="startIndex">
+    ///     The starting index of the color range to cycle
+    /// </param>
+    /// <param name="endIndex">
+    ///     The ending index of the color range to cycle (inclusive)
+    /// </param>
+    /// <param name="stage">
+    ///     The stage of the cycling period. Will be modulo by the range length
+    /// </param>
+    /// <return>
+    ///     A new Palette instance with the cycled colors
+    /// </return>
+    public Palette Cycle(byte startIndex, byte endIndex, int stage = 0)
+    {
+        var cycledPalette = new Palette(this);
+        var rangeLength = endIndex - startIndex + 1;
+        var offset = stage % rangeLength;
+
+        for (var i = 0; i < rangeLength; i++)
+        {
+            var sourceIndex = startIndex + (i - offset + rangeLength) % rangeLength;
+            cycledPalette[startIndex + i] = this[sourceIndex];
+        }
+
+        return cycledPalette;
     }
 
     /// <summary>
