@@ -430,14 +430,18 @@ public static class Graphics
     /// <param name="palette">
     ///     A palette containing colors used by the frame
     /// </param>
-    public static SKImage RenderImage(EpfFrame frame, Palette palette)
+    /// <param name="alphaType">
+    ///     Alpha blending type. Defaults to Premul. Should be set to Unpremul for palettes >= 1000
+    /// </param>
+    public static SKImage RenderImage(EpfFrame frame, Palette palette, SKAlphaType alphaType = SKAlphaType.Premul)
         => SimpleRender(
             frame.Left,
             frame.Top,
             frame.PixelWidth,
             frame.PixelHeight,
             frame.Data,
-            palette);
+            palette,
+            alphaType);
 
     /// <summary>
     ///     Renders an MpfFrame
@@ -1115,7 +1119,8 @@ public static class Graphics
         int width,
         int height,
         byte[] data,
-        Palette palette)
+        Palette palette,
+        SKAlphaType alphaType = SKAlphaType.Premul)
     {
         //when left/top are negative, skip the padding and shift pixels to 0
         var dstOffsetX = Math.Max(0, left);
@@ -1123,7 +1128,11 @@ public static class Graphics
         var bitmapWidth = width + dstOffsetX;
         var bitmapHeight = height + dstOffsetY;
 
-        using var bitmap = new SKBitmap(bitmapWidth, bitmapHeight);
+        using var bitmap = new SKBitmap(
+            bitmapWidth,
+            bitmapHeight,
+            SKColorType.Bgra8888,
+            alphaType);
         using var pixMap = bitmap.PeekPixels();
 
         var pixelBuffer = pixMap.GetPixelSpan<SKColor>();
