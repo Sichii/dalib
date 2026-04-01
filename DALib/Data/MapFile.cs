@@ -142,15 +142,15 @@ public sealed class MapTile
     ///     The id of the background part of the tile. This id references a <see cref="Tile" /> from a <see cref="Tileset" />
     ///     loaded from Seo.dat
     /// </summary>
-    public int Background { get; init; }
+    public short Background { get; init; }
 
     /// <summary>
     ///     The id of the left foreground part of the tile. This id references an HPF image loaded from ia.dat
     /// </summary>
-    public int LeftForeground { get; set; }
+    public short LeftForeground { get; set; }
 
     /// <summary>
     ///     The id of the right foreground part of the tile. This id references an HPF image loaded from ia.dat
     /// </summary>
-    public int RightForeground { get; set; }
+    public short RightForeground { get; set; }
 }
