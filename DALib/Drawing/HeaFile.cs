@@ -138,7 +138,7 @@ public sealed class HeaFile : ISavable
             throw new ArgumentOutOfRangeException(nameof(layerIndex));
 
         var start = Thresholds[layerIndex];
-        var end = layerIndex < LayerCount - 1 ? Thresholds[layerIndex + 1] : ScanlineWidth;
+        var end = layerIndex < (LayerCount - 1) ? Thresholds[layerIndex + 1] : ScanlineWidth;
 
         return end - start;
     }
@@ -193,7 +193,7 @@ public sealed class HeaFile : ISavable
 
         var pixelIndex = 0;
 
-        for (var i = byteOffset; (i + 1 < RleData.Length) && (pixelIndex < layerWidth); i += 2)
+        for (var i = byteOffset; ((i + 1) < RleData.Length) && (pixelIndex < layerWidth); i += 2)
         {
             var value = RleData[i];
             var count = RleData[i + 1];

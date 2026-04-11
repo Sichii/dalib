@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Frozen;
-using System.Diagnostics;
 using System.Linq;
 using DALib.Definitions;
 using DALib.Drawing;

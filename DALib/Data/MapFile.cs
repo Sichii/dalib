@@ -31,7 +31,7 @@ public sealed class MapFile(int width, int height) : ISavable
     private MapFile(Stream stream, int width, int height)
         : this(width, height)
     {
-        if (stream.Length != width * height * 6)
+        if (stream.Length != (width * height * 6))
             throw new InvalidDataException("Invalid map file");
 
         using var reader = new BinaryReader(stream, Encoding.Default, true);
