@@ -20,6 +20,10 @@ namespace DALib.Drawing;
 /// </summary>
 public sealed class MpfFile : Collection<MpfFrame>, ISavable
 {
+    private const int STATIC_NO_IDLE_INTERVAL_MS = 10_000;
+    private const int DEFAULT_IDLE_INTERVAL_MS = 300;
+    private const int MIN_NORMAL_IDLE_INTERVAL_MS = 100;
+
     /// <summary>
     ///     The number of frames for the second attack animation
     /// </summary>
@@ -61,17 +65,34 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
     public MpfHeaderType HeaderType { get; set; }
 
     /// <summary>
-    ///     The number of frames in the standing animation including optional frames. If your normal standing animation has 4
-    ///     frames, but there are 2 extra frames that should occasionally be played, then you would put 6 here. (4 normal
-    ///     frames + 2 optional frames). If there is no optional animation, this will have a value of 0.
+    ///     The per-frame display interval for the idle animation, in milliseconds.
     /// </summary>
+    /// <remarks>
+    ///     Always populated after load and always reflects the interval that should actually be used at playback time,
+    ///     regardless of <see cref="MpfIdleType" />. Only serialized back to disk for <see cref="MpfIdleType.NormalIdle" />
+    ///     where the on-disk byte is stored in units of 100 ms; values not divisible by 100 ms are floored on save.
+    /// </remarks>
+    public int AnimationIntervalMs { get; set; }
+
+    /// <summary>
+    ///     The number of optional frames appended to the standing animation for the
+    ///     <see cref="MpfIdleType.NormalPlusOptional" /> type.
+    /// </summary>
+    /// <remarks>
+    ///     Together with <see cref="StandingFrameCount" />, this value determines the <see cref="MpfIdleType" /> returned
+    ///     by <see cref="DetectIdleType" />. A value of zero means the sprite has no idle animation — see
+    ///     <see cref="MpfIdleType.StaticNoIdle" />.
+    /// </remarks>
     public byte OptionalAnimationFrameCount { get; set; }
 
     /// <summary>
-    ///     Specifies the ratio of playing the optional standing frames. For example, if this is set to 30, it will play the
-    ///     optional frames 30% of the time
+    ///     The probability, from 0 to 100, that the optional frames are appended to the standing loop on any given cycle.
     /// </summary>
-    public byte OptionalAnimationRatio { get; set; }
+    /// <remarks>
+    ///     Applies only when <see cref="DetectIdleType" /> returns <see cref="MpfIdleType.NormalPlusOptional" />. Values
+    ///     set for any other type are ignored on save.
+    /// </remarks>
+    public byte OptionalAnimationProbability { get; set; }
 
     /// <summary>
     ///     The palette number used to colorize this image
@@ -141,6 +162,57 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
         PixelHeight = height;
     }
 
+    /// <summary>
+    ///     Determines the <see cref="MpfIdleType" /> implied by the given standing and optional-animation frame counts.
+    /// </summary>
+    /// <param name="standingFrameCount">The <see cref="StandingFrameCount" /> value to classify.</param>
+    /// <param name="optionalAnimationFrameCount">The <see cref="OptionalAnimationFrameCount" /> value to classify.</param>
+    /// <returns>The idle type that governs how the ratio byte is interpreted.</returns>
+    public static MpfIdleType DetectIdleType(byte standingFrameCount, byte optionalAnimationFrameCount)
+    {
+        if (optionalAnimationFrameCount == 0)
+            return MpfIdleType.StaticNoIdle;
+
+        if ((standingFrameCount == 0) || (standingFrameCount == optionalAnimationFrameCount))
+            return MpfIdleType.NormalIdle;
+
+        return MpfIdleType.NormalPlusOptional;
+    }
+
+    //populates AnimationIntervalMs and OptionalAnimationProbability from the raw on-disk ratio byte
+    //according to the current idle type. must run after StandingFrameCount and
+    //OptionalAnimationFrameCount are assigned.
+    private void ApplyRawOptionalAnimationRatio(byte rawRatio)
+    {
+        switch (DetectIdleType(StandingFrameCount, OptionalAnimationFrameCount))
+        {
+            case MpfIdleType.StaticNoIdle:
+                AnimationIntervalMs = STATIC_NO_IDLE_INTERVAL_MS;
+
+                break;
+            case MpfIdleType.NormalIdle:
+                AnimationIntervalMs = rawRatio > 0 ? Math.Max(MIN_NORMAL_IDLE_INTERVAL_MS, rawRatio * 100) : DEFAULT_IDLE_INTERVAL_MS;
+
+                break;
+            case MpfIdleType.NormalPlusOptional:
+                AnimationIntervalMs = DEFAULT_IDLE_INTERVAL_MS;
+                OptionalAnimationProbability = rawRatio;
+
+                break;
+        }
+    }
+
+    //projects the semantic properties back to a single on-disk ratio byte for serialization. the
+    //meaning depends on the current idle type — NormalIdle stores the interval / 100, NormalPlusOptional
+    //stores the probability, and StaticNoIdle stores nothing.
+    private byte GetRawOptionalAnimationRatio()
+        => DetectIdleType(StandingFrameCount, OptionalAnimationFrameCount) switch
+        {
+            MpfIdleType.NormalIdle => (byte)(AnimationIntervalMs / 100),
+            MpfIdleType.NormalPlusOptional => OptionalAnimationProbability,
+            _ => 0
+        };
+
     private MpfFile(Stream stream)
     {
         using var reader = new BinaryReader(stream, Encoding.Default, true);
@@ -194,7 +266,7 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
                 StandingFrameIndex = reader.ReadByte();
                 StandingFrameCount = reader.ReadByte();
                 OptionalAnimationFrameCount = reader.ReadByte();
-                OptionalAnimationRatio = reader.ReadByte();
+                ApplyRawOptionalAnimationRatio(reader.ReadByte());
                 AttackFrameIndex = reader.ReadByte();
                 AttackFrameCount = reader.ReadByte();
                 Attack2StartIndex = reader.ReadByte();
@@ -211,7 +283,7 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
                 StandingFrameIndex = reader.ReadByte();
                 StandingFrameCount = reader.ReadByte();
                 OptionalAnimationFrameCount = reader.ReadByte();
-                OptionalAnimationRatio = reader.ReadByte();
+                ApplyRawOptionalAnimationRatio(reader.ReadByte());
 
                 break;
         }
@@ -306,7 +378,7 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
             writer.Write(StandingFrameIndex);
             writer.Write(StandingFrameCount);
             writer.Write(OptionalAnimationFrameCount);
-            writer.Write(OptionalAnimationRatio);
+            writer.Write(GetRawOptionalAnimationRatio());
             writer.Write(AttackFrameIndex);
             writer.Write(AttackFrameCount);
             writer.Write(Attack2StartIndex);
@@ -320,7 +392,7 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
             writer.Write(StandingFrameIndex);
             writer.Write(StandingFrameCount);
             writer.Write(OptionalAnimationFrameCount);
-            writer.Write(OptionalAnimationRatio);
+            writer.Write(GetRawOptionalAnimationRatio());
         }
 
         var startAddress = 0;

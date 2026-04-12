@@ -85,6 +85,28 @@ public enum MpfFormatType
 }
 
 /// <summary>
+///     Describes how a creature sprite's idle/standing animation plays back.
+/// </summary>
+public enum MpfIdleType
+{
+    /// <summary>
+    ///     The creature shows a single unchanging frame and never animates while idle.
+    /// </summary>
+    StaticNoIdle = 0,
+
+    /// <summary>
+    ///     The creature plays one continuous standing loop at a fixed per-frame delay.
+    /// </summary>
+    NormalIdle = 1,
+
+    /// <summary>
+    ///     The creature plays a short standing loop by default and occasionally adds the optional animation frames,
+    ///     chosen at random each time the previous loop ends.
+    /// </summary>
+    NormalPlusOptional = 2
+}
+
+/// <summary>
 ///     Represents the different types of SPF formats
 /// </summary>
 public enum SpfFormatType

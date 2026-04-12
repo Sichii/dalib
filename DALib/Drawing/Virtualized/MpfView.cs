@@ -51,17 +51,22 @@ public sealed class MpfView
     public byte AttackFrameIndex { get; }
 
     /// <summary>
-    ///     The number of frames in the standing animation including optional frames. If your normal standing animation has 4
-    ///     frames, but there are 2 extra frames that should occasionally be played, then you would put 6 here. (4 normal
-    ///     frames + 2 optional frames). If there is no optional animation, this will have a value of 0.
+    ///     The per-frame display interval for the idle animation, in milliseconds. See
+    ///     <see cref="MpfFile.AnimationIntervalMs" />.
+    /// </summary>
+    public int AnimationIntervalMs { get; }
+
+    /// <summary>
+    ///     The number of optional frames appended to the standing animation for the
+    ///     <see cref="MpfIdleType.NormalPlusOptional" /> type. See <see cref="MpfFile.OptionalAnimationFrameCount" />.
     /// </summary>
     public byte OptionalAnimationFrameCount { get; }
 
     /// <summary>
-    ///     Specifies the ratio of playing the optional standing frames. For example, if this is set to 30, it will play the
-    ///     optional frames 30% of the time
+    ///     The probability (0-100) that the optional frames are appended to the standing loop on any given cycle. Populated
+    ///     only for <see cref="MpfIdleType.NormalPlusOptional" />. See <see cref="MpfFile.OptionalAnimationProbability" />.
     /// </summary>
-    public byte OptionalAnimationRatio { get; }
+    public byte OptionalAnimationProbability { get; }
 
     /// <summary>
     ///     The palette number used to colorize this image
@@ -121,7 +126,7 @@ public sealed class MpfView
         byte standingFrameIndex,
         byte standingFrameCount,
         byte optionalAnimationFrameCount,
-        byte optionalAnimationRatio)
+        byte rawOptionalAnimationRatio)
     {
         Entry = entry;
         DataSectionOffset = dataSectionOffset;
@@ -140,7 +145,25 @@ public sealed class MpfView
         StandingFrameIndex = standingFrameIndex;
         StandingFrameCount = standingFrameCount;
         OptionalAnimationFrameCount = optionalAnimationFrameCount;
-        OptionalAnimationRatio = optionalAnimationRatio;
+
+        //derive AnimationIntervalMs (and OptionalAnimationProbability) from the raw ratio byte,
+        //matching MpfFile. the interval is always populated regardless of idle type.
+        switch (MpfFile.DetectIdleType(standingFrameCount, optionalAnimationFrameCount))
+        {
+            case MpfIdleType.StaticNoIdle:
+                AnimationIntervalMs = 10_000;
+
+                break;
+            case MpfIdleType.NormalIdle:
+                AnimationIntervalMs = rawOptionalAnimationRatio > 0 ? Math.Max(100, rawOptionalAnimationRatio * 100) : 300;
+
+                break;
+            case MpfIdleType.NormalPlusOptional:
+                AnimationIntervalMs = 300;
+                OptionalAnimationProbability = rawOptionalAnimationRatio;
+
+                break;
+        }
     }
 
     /// <summary>
@@ -203,7 +226,7 @@ public sealed class MpfView
         byte standingFrameIndex,
              standingFrameCount,
              optionalAnimationFrameCount,
-             optionalAnimationRatio,
+             rawOptionalAnimationRatio,
              attackFrameIndex,
              attackFrameCount,
              attack2StartIndex = 0,
@@ -217,7 +240,7 @@ public sealed class MpfView
                 standingFrameIndex = reader.ReadByte();
                 standingFrameCount = reader.ReadByte();
                 optionalAnimationFrameCount = reader.ReadByte();
-                optionalAnimationRatio = reader.ReadByte();
+                rawOptionalAnimationRatio = reader.ReadByte();
                 attackFrameIndex = reader.ReadByte();
                 attackFrameCount = reader.ReadByte();
                 attack2StartIndex = reader.ReadByte();
@@ -233,7 +256,7 @@ public sealed class MpfView
                 standingFrameIndex = reader.ReadByte();
                 standingFrameCount = reader.ReadByte();
                 optionalAnimationFrameCount = reader.ReadByte();
-                optionalAnimationRatio = reader.ReadByte();
+                rawOptionalAnimationRatio = reader.ReadByte();
 
                 break;
         }
@@ -289,7 +312,7 @@ public sealed class MpfView
             standingFrameIndex,
             standingFrameCount,
             optionalAnimationFrameCount,
-            optionalAnimationRatio);
+            rawOptionalAnimationRatio);
     }
 
     /// <summary>
