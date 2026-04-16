@@ -104,8 +104,9 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
             var top = reader.ReadUInt16();
             var right = reader.ReadUInt16();
             var bottom = reader.ReadUInt16();
-            _ = reader.ReadUInt32();
-            var reserved = reader.ReadUInt32();
+            var centerX = reader.ReadInt16();
+            var centerY = reader.ReadInt16();
+            var flags = reader.ReadUInt32();
             var startAddress = reader.ReadUInt32();
             var byteWidth = reader.ReadUInt32();
             var byteCount = reader.ReadUInt32();
@@ -118,7 +119,9 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
                     Top = top,
                     Right = right,
                     Bottom = bottom,
-                    Unknown2 = reserved,
+                    CenterY = centerY,
+                    CenterX = centerX,
+                    HasCenterPoint = (flags & 1) != 0,
                     StartAddress = startAddress,
                     ByteWidth = byteWidth,
                     ByteCount = byteCount,
@@ -164,8 +167,9 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
             var top = reader.ReadUInt16();
             var right = reader.ReadUInt16();
             var bottom = reader.ReadUInt16();
-            _ = reader.ReadUInt32();
-            var unknown2 = reader.ReadUInt32();
+            var centerX = reader.ReadInt16();
+            var centerY = reader.ReadInt16();
+            var flags = reader.ReadUInt32();
             var startAddress = reader.ReadUInt32();
             var byteWidth = reader.ReadUInt32();
             var byteCount = reader.ReadUInt32();
@@ -178,7 +182,9 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
                     Top = top,
                     Right = right,
                     Bottom = bottom,
-                    Unknown2 = unknown2,
+                    CenterY = centerY,
+                    CenterX = centerX,
+                    HasCenterPoint = (flags & 1) != 0,
                     StartAddress = startAddress,
                     ByteWidth = byteWidth,
                     ByteCount = byteCount,
@@ -255,8 +261,9 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
             writer.Write(frame.Top);
             writer.Write(frame.Right);
             writer.Write(frame.Bottom);
-            writer.Write(SpfFrame.Unknown1);
-            writer.Write(frame.Unknown2);
+            writer.Write(frame.CenterX);
+            writer.Write(frame.CenterY);
+            writer.Write(frame.HasCenterPoint ? 1u : 0u);
             writer.Write(frame.StartAddress);
             writer.Write(frame.ByteWidth);
             writer.Write(frame.ByteCount);
@@ -314,8 +321,9 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
             writer.Write(frame.Top);
             writer.Write(frame.Right);
             writer.Write(frame.Bottom);
-            writer.Write(SpfFrame.Unknown1);
-            writer.Write(frame.Unknown2);
+            writer.Write(frame.CenterX);
+            writer.Write(frame.CenterY);
+            writer.Write(frame.HasCenterPoint ? 1u : 0u);
             writer.Write(frame.StartAddress);
             writer.Write(frame.ByteWidth);
             writer.Write(frame.ByteCount);
@@ -365,7 +373,8 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
                 Top = 0,
                 Right = (ushort)image.Width,
                 Bottom = (ushort)image.Height,
-                Unknown2 = 0,
+                CenterX = unchecked((short)0xCCCC),
+                CenterY = unchecked((short)0xCCCC),
                 StartAddress = 0,
                 ByteWidth = (uint)image.Width * 2,
                 ByteCount = (uint)(image.Width * image.Height * 4), //2 bytes per pixel, 2 copies of image
@@ -429,7 +438,8 @@ public sealed class SpfFile : Collection<SpfFrame>, ISavable
                     Top = 0,
                     Right = (ushort)image.Width,
                     Bottom = (ushort)image.Height,
-                    Unknown2 = 0,
+                    CenterX = unchecked((short)0xCCCC),
+                    CenterY = unchecked((short)0xCCCC),
                     StartAddress = 0,
                     ByteWidth = (uint)image.Width,
                     ByteCount = (uint)image.Width * (uint)image.Height,

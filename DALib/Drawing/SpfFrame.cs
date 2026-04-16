@@ -33,6 +33,18 @@ public sealed class SpfFrame
     public uint ByteWidth { get; set; }
 
     /// <summary>
+    ///     The X coordinate of the anchor point in canvas space. Used for alignment when rendering (e.g. projectile sprites).
+    ///     Only valid when <see cref="HasCenterPoint" /> is true. Stored at TOC+0x08 in the file.
+    /// </summary>
+    public short CenterX { get; set; }
+
+    /// <summary>
+    ///     The Y coordinate of the anchor point in canvas space. Used for alignment when rendering (e.g. projectile sprites).
+    ///     Only valid when <see cref="HasCenterPoint" /> is true. Stored at TOC+0x0A in the file.
+    /// </summary>
+    public short CenterY { get; set; }
+
+    /// <summary>
     ///     If colorized, the colorized pixel data of the frame (the RGB565 data scaled to RGB888)
     /// </summary>
     public SKColor[]? ColorData { get; set; }
@@ -41,6 +53,11 @@ public sealed class SpfFrame
     ///     If palettized, the palettized pixel data of the frame (the palette indexes)
     /// </summary>
     public byte[]? Data { get; set; }
+
+    /// <summary>
+    ///     Whether this frame has valid center point data in <see cref="CenterX" /> and <see cref="CenterY" />.
+    /// </summary>
+    public bool HasCenterPoint { get; set; }
 
     /// <summary>
     ///     The number of byte per image
@@ -73,11 +90,6 @@ public sealed class SpfFrame
     public ushort Top { get; set; }
 
     /// <summary>
-    ///     A value that has an unknown use LI: figure out what this is for
-    /// </summary>
-    public uint Unknown2 { get; set; }
-
-    /// <summary>
     ///     The pixel height of the frame
     /// </summary>
     public int PixelHeight => Bottom - Top;
@@ -86,9 +98,4 @@ public sealed class SpfFrame
     ///     The pixel width of the frame
     /// </summary>
     public int PixelWidth => Right - Left;
-
-    /// <summary>
-    ///     A value that has an unknown use LI: figure out what this is for
-    /// </summary>
-    public static uint Unknown1 => 0xCCCCCCCC; // Every SPF has this value associated with it
 }
