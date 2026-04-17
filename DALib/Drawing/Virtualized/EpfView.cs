@@ -101,12 +101,10 @@ public sealed class EpfView
             var startAddress = reader.ReadInt32();
             var endAddress = reader.ReadInt32();
 
-            var width = right - left;
-            var height = bottom - top;
-
-            if ((width == 0) || (height == 0))
-                continue;
-
+            //empty frames (width==0 || height==0) are preserved in the TOC so that direct-index
+            //access by animation-frame index stays stable. Weapons/equipment use 0x0 frames as a
+            //"no visual on this pose" marker; dropping them would shift all subsequent indices and
+            //either mis-render or mask later frames.
             tocEntries.Add(
                 new TocEntry(
                     top,
@@ -137,13 +135,25 @@ public sealed class EpfView
 
             var toc = Toc[index];
 
+            var width = toc.Right - toc.Left;
+            var height = toc.Bottom - toc.Top;
+
+            //empty-frame marker: preserve the TOC entry but return an empty Data array — callers
+            //should check PixelWidth/PixelHeight before rendering.
+            if ((width == 0) || (height == 0))
+                return new EpfFrame
+                {
+                    Top = toc.Top,
+                    Left = toc.Left,
+                    Bottom = toc.Bottom,
+                    Right = toc.Right,
+                    Data = []
+                };
+
             using var stream = Entry.ToStreamSegment();
             using var reader = new BinaryReader(stream, Encoding.Default, true);
 
             stream.Seek(HEADER_LENGTH + toc.StartAddress, SeekOrigin.Begin);
-
-            var width = toc.Right - toc.Left;
-            var height = toc.Bottom - toc.Top;
 
             var data = (toc.EndAddress - toc.StartAddress) == (width * height)
                 ? reader.ReadBytes(toc.EndAddress - toc.StartAddress)

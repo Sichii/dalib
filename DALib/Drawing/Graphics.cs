@@ -434,7 +434,19 @@ public static class Graphics
     ///     Alpha blending type. Defaults to Premul. Should be set to Unpremul for palettes >= 1000
     /// </param>
     public static SKImage RenderImage(EpfFrame frame, Palette palette, SKAlphaType alphaType = SKAlphaType.Premul)
-        => SimpleRender(
+    {
+        //empty-frame marker (PixelWidth==0 || PixelHeight==0): return a 1x1 transparent image so
+        //callers that iterate all frames of an EPF don't crash on SKBitmap(0,0). Equipment
+        //renderers should short-circuit on PixelWidth/PixelHeight before reaching here.
+        if ((frame.PixelWidth <= 0) || (frame.PixelHeight <= 0))
+        {
+            using var emptyBitmap = new SKBitmap(1, 1, SKColorType.Bgra8888, alphaType);
+            emptyBitmap.Erase(CONSTANTS.Transparent);
+
+            return SKImage.FromBitmap(emptyBitmap);
+        }
+
+        return SimpleRender(
             frame.Left,
             frame.Top,
             frame.PixelWidth,
@@ -442,6 +454,7 @@ public static class Graphics
             frame.Data,
             palette,
             alphaType);
+    }
 
     /// <summary>
     ///     Renders an MpfFrame

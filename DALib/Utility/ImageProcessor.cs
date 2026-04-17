@@ -258,7 +258,6 @@ public static class ImageProcessor
             }
         }
         else
-        {
             for (var y = 0; y < image.Height; y++)
             {
                 for (var x = 0; x < image.Width; x++)
@@ -269,7 +268,6 @@ public static class ImageProcessor
                                                                .ToSKColor();
                 }
             }
-        }
 
         return SKImage.FromBitmap(quantizedBitmap);
     }

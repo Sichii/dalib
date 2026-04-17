@@ -84,14 +84,21 @@ public sealed class EpfFile : Collection<EpfFrame>, ISavable
             var startAddress = reader.ReadInt32();
             var endAddress = reader.ReadInt32();
 
-            segment.Seek(startAddress, SeekOrigin.Begin);
-
-            var data = (endAddress - startAddress) == (width * height)
-                ? reader.ReadBytes(endAddress - startAddress)
-                : reader.ReadBytes(tocAddress - startAddress);
+            //empty frames (width==0 || height==0) are preserved with an empty Data array so that
+            //direct-index access by animation-frame index stays stable. Callers should check
+            //PixelWidth/PixelHeight before rendering.
+            byte[] data;
 
             if ((width == 0) || (height == 0))
-                continue;
+                data = [];
+            else
+            {
+                segment.Seek(startAddress, SeekOrigin.Begin);
+
+                data = (endAddress - startAddress) == (width * height)
+                    ? reader.ReadBytes(endAddress - startAddress)
+                    : reader.ReadBytes(tocAddress - startAddress);
+            }
 
             Add(
                 new EpfFrame

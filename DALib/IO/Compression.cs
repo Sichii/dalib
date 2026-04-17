@@ -131,7 +131,6 @@ public static class Compression
             uint currentNode = 0;
 
             while (currentNode != targetNode)
-            {
                 if (IsNodeInSubtree(targetNode, intOdd[(int)currentNode], intOdd, intEven))
                 {
                     bits.Add(false);
@@ -144,7 +143,6 @@ public static class Compression
                 }
                 else
                     throw new InvalidDataException($"Cannot reach node {targetNode} from {currentNode}");
-            }
 
             var val  = targetNode;
             var val3 = val;
@@ -161,9 +159,7 @@ public static class Compression
                     intEven[idx] = val3;
                 }
                 else
-                {
                     intOdd[idx] = val3;
-                }
 
                 if (intOdd[(int)val2] == val3)
                     intOdd[(int)val2] = j;
@@ -181,14 +177,12 @@ public static class Compression
         var compressedData = new byte[compressedSize];
 
         for (var i = 0; i < bits.Count; i++)
-        {
             if (bits[i])
             {
                 var byteIdx = i / 8;
                 var bitIdx  = i % 8;
                 compressedData[byteIdx] |= (byte)(1 << bitIdx);
             }
-        }
 
         var output = new byte[4 + compressedSize];
         output[0] = 0x55;
