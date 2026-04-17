@@ -36,9 +36,6 @@ public sealed class MapImageCache : IDisposable
     /// <param name="fgCache">
     ///     The left foreground cache
     /// </param>
-    /// <param name="rfgCache">
-    ///     The right foreground cache
-    /// </param>
     public MapImageCache(SKImageCache<int> bgCache, SKImageCache<int> fgCache)
     {
         BackgroundCache = bgCache;

@@ -89,6 +89,11 @@ public static class SKColorExtensions
         return (byte)Math.Clamp(MathF.Round(lumSrgb * 255f * coefficient), 0, 255);
     }
 
+    /// <summary>
+    /// Generates a random vivid color with high saturation and brightness values.
+    /// </summary>
+    /// <param name="random">The random number generator to use. If null, uses Random.Shared.</param>
+    /// <return>A random SKColor with saturation and value between 80-100% in the HSV color space.</return>
     public static SKColor GetRandomVividColor(Random? random = null)
     {
         random ??= Random.Shared;

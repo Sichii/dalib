@@ -95,7 +95,19 @@ public static class Compression
 
         buffer = rawBytes[..m];
     }
-    
+
+    /// <summary>
+    /// Compresses data using HPF compression algorithm.
+    /// </summary>
+    /// <param name="buffer">
+    /// The buffer containing the data to compress.
+    /// </param>
+    /// <returns>
+    /// A byte array containing the compressed data with HPF header.
+    /// </returns>
+    /// <exception cref="InvalidDataException">
+    /// Thrown when a node in the compression tree cannot be reached during encoding.
+    /// </exception>
     public static byte[] CompressHpf(Span<byte> buffer)
     {
         Span<uint> intOdd   = stackalloc uint[256];
@@ -112,10 +124,10 @@ public static class Compression
 
         var bits = new List<bool>(buffer.Length * 8);
 
-        for (int byteIndex = 0; byteIndex <= buffer.Length; byteIndex++)
+        for (var byteIndex = 0; byteIndex <= buffer.Length; byteIndex++)
         {
-            uint symbol = byteIndex < buffer.Length ? buffer[byteIndex] : 0x100u;
-            uint targetNode = symbol + 0x100;
+            var symbol = byteIndex < buffer.Length ? buffer[byteIndex] : 0x100u;
+            var targetNode = symbol + 0x100;
             uint currentNode = 0;
 
             while (currentNode != targetNode)
@@ -134,23 +146,23 @@ public static class Compression
                     throw new InvalidDataException($"Cannot reach node {targetNode} from {currentNode}");
             }
 
-            uint val  = targetNode;
-            uint val3 = val;
+            var val  = targetNode;
+            var val3 = val;
             uint val2 = bytePair[(int)val];
 
             while ((val3 != 0) && (val2 != 0))
             {
-                byte idx = bytePair[(int)val2];
-                uint j   = intOdd[(int)idx];
+                var idx = bytePair[(int)val2];
+                var j   = intOdd[idx];
 
                 if (j == val2)
                 {
-                    j = intEven[(int)idx];
-                    intEven[(int)idx] = val3;
+                    j = intEven[idx];
+                    intEven[idx] = val3;
                 }
                 else
                 {
-                    intOdd[(int)idx] = val3;
+                    intOdd[idx] = val3;
                 }
 
                 if (intOdd[(int)val2] == val3)
@@ -172,8 +184,8 @@ public static class Compression
         {
             if (bits[i])
             {
-                int byteIdx = i / 8;
-                int bitIdx  = i % 8;
+                var byteIdx = i / 8;
+                var bitIdx  = i % 8;
                 compressedData[byteIdx] |= (byte)(1 << bitIdx);
             }
         }
@@ -192,6 +204,7 @@ public static class Compression
     {
         if (root == target) return true;
         if (root > 0xFF) return false;
+
         return IsNodeInSubtree(target, intOdd[(int)root], intOdd, intEven) ||
                IsNodeInSubtree(target, intEven[(int)root], intOdd, intEven);
     }
