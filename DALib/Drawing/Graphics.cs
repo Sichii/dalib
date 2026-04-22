@@ -1159,9 +1159,11 @@ public static class Graphics
 
                 var pixelIndex = y * width + x;
                 var paletteIndex = data[pixelIndex];
-
-                //if the paletteIndex is 0, and that color is pure black or transparent black
+                
                 var color = paletteIndex == 0 ? CONSTANTS.Transparent : palette[paletteIndex];
+
+                if (color is { Red: 0, Green: 0, Blue: 0 })
+                    color = CONSTANTS.Transparent;
 
                 pixelBuffer[yActual * bitmapWidth + xActual] = color;
             }
