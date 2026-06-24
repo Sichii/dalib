@@ -191,7 +191,9 @@ public sealed class MpfFile : Collection<MpfFrame>, ISavable
 
                 break;
             case MpfIdleType.NormalIdle:
-                AnimationIntervalMs = rawRatio > 0 ? Math.Max(MIN_NORMAL_IDLE_INTERVAL_MS, rawRatio * 100) : DEFAULT_IDLE_INTERVAL_MS;
+                //a zero ratio byte floors to the 100ms minimum (max(100, ratio*100)); it does not fall
+                //back to the 300ms default
+                AnimationIntervalMs = Math.Max(MIN_NORMAL_IDLE_INTERVAL_MS, rawRatio * 100);
 
                 break;
             case MpfIdleType.NormalPlusOptional:

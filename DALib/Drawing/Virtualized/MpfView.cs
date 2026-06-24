@@ -155,7 +155,9 @@ public sealed class MpfView
 
                 break;
             case MpfIdleType.NormalIdle:
-                AnimationIntervalMs = rawOptionalAnimationRatio > 0 ? Math.Max(100, rawOptionalAnimationRatio * 100) : 300;
+                //a zero ratio byte floors to the 100ms minimum (max(100, ratio*100)); it does not fall
+                //back to the 300ms default
+                AnimationIntervalMs = Math.Max(100, rawOptionalAnimationRatio * 100);
 
                 break;
             case MpfIdleType.NormalPlusOptional:
