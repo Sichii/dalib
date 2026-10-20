@@ -40,13 +40,25 @@ public class DataArchive : KeyedCollection<string, DataArchiveEntry>, ISavable, 
 
         using var reader = new BinaryReader(BaseStream, Encoding.Default, true);
 
-        var expectedNumberOfEntries = reader.ReadInt32() - 1;
+        var entryCount = reader.ReadInt32();
+        var expectedNumberOfEntries = entryCount - 1;
+        var longNames = false;
+
+        //some archives (lod) use 36 byte entries with 32 byte names
+        //detect them by the first entry's address sitting right after a table of that size
+        if (expectedNumberOfEntries > 0)
+        {
+            var firstAddress = reader.ReadInt32();
+            stream.Seek(-4, SeekOrigin.Current);
+            longNames = firstAddress == 4 + entryCount * 36;
+        }
 
         for (var i = 0; i < expectedNumberOfEntries; ++i)
         {
             var startAddress = reader.ReadInt32();
 
-            var nameLength = newFormat ? 12 : CONSTANTS.DATA_ARCHIVE_ENTRY_NAME_LENGTH;
+            var nameLength = longNames ? 32
+                : newFormat ? 12 : CONSTANTS.DATA_ARCHIVE_ENTRY_NAME_LENGTH;
 
             var nameBytes = new byte[nameLength];
             _ = reader.Read(nameBytes, 0, nameLength);
@@ -57,7 +69,7 @@ public class DataArchive : KeyedCollection<string, DataArchiveEntry>, ISavable, 
             if (nullChar > -1)
                 name = name[..nullChar];
 
-            if (newFormat)
+            if (newFormat && !longNames)
                 _ = reader.ReadBytes(20); //idk
 
             var endAddress = reader.ReadInt32();
